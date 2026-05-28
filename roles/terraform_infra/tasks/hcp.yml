@@ -1,8 +1,10 @@
 ---
-# HCP Terraform / Terraform Enterprise API (hashicorp.terraform collection).
-# Token via TFE_TOKEN / TF_TOKEN env (AAP credential injectors) — not passed in task args.
+# HCP Terraform API — requires hashicorp.terraform >= 2.0 in sap-mod-ee (tfe_* + pytfe).
 - name: Prepare HCP token and run variables
   ansible.builtin.include_tasks: hcp_prepare.yml
+
+- name: Assert hashicorp.terraform 2.x in execution environment
+  ansible.builtin.include_tasks: hcp_assert_collection.yml
 
 - name: Require HCP Terraform API token
   ansible.builtin.assert:
@@ -10,8 +12,7 @@
       - _hcp_tf_token is defined
       - _hcp_tf_token | length > 0
     fail_msg: >-
-      Set hcp_terraform_token or TF_TOKEN / TFE_TOKEN (SAP Mod - HCP Terraform credential)
-      for hashicorp.terraform.
+      Set TF_TOKEN / TFE_TOKEN via SAP Mod - HCP Terraform credential on the job template.
 
 - name: Require workspace id or organization + workspace name
   ansible.builtin.assert:

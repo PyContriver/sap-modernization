@@ -8,6 +8,11 @@
         name: terraform_infra
         tasks_from: hcp_prepare
 
+    - name: Assert hashicorp.terraform 2.x in execution environment
+      ansible.builtin.include_role:
+        name: terraform_infra
+        tasks_from: hcp_assert_collection
+
     - name: Upload configuration for destroy run
       block:
         - name: Upload Terraform configuration version for destroy

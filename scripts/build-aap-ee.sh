@@ -31,7 +31,21 @@ echo "Pulling base image ${EE_BASE}..."
 "${CONTAINER_CMD}" pull --tls-verify=false --platform "${PLATFORM}" "${EE_BASE}" 2>/dev/null \
   || "${CONTAINER_CMD}" pull --platform "${PLATFORM}" "${EE_BASE}"
 
-echo "Building ${EE_IMAGE} (pip layer on Hub EE, platform ${PLATFORM})..."
+echo "Building ${EE_IMAGE} (pytfe + hashicorp.terraform>=2.0, platform ${PLATFORM})..."
+if [[ -z "${ANSIBLE_GALAXY_SERVER_AUTOMATION_HUB_TOKEN:-}" ]]; then
+  echo "ERROR: set ANSIBLE_GALAXY_SERVER_AUTOMATION_HUB_TOKEN in .env (Automation Hub) before building EE" >&2
+  exit 1
+fi
+
+_STAGING="${EE_DIR}/.collections-staging"
+rm -rf "${_STAGING}"
+mkdir -p "${_STAGING}"
+echo "Staging hashicorp.terraform >= 2.0 for EE (Automation Hub)..."
+export ANSIBLE_CONFIG="${ROOT}/ansible.cfg"
+ansible-galaxy collection install 'hashicorp.terraform:>=2.0.0,<3.0.0' \
+  -p "${_STAGING}" --force
+ansible-galaxy collection list hashicorp.terraform -p "${_STAGING}"
+
 "${CONTAINER_CMD}" build \
   --platform "${PLATFORM}" \
   -f "${EE_DIR}/Containerfile.sap-mod-ee" \

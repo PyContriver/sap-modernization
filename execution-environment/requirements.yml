@@ -1,6 +1,7 @@
 ---
 collections:
   - name: hashicorp.terraform
+    version: ">=2.0.0,<3.0.0"
     source: https://console.redhat.com/api/automation-hub/content/published/
   - name: cloud.terraform
     version: ">=2.0.0"
