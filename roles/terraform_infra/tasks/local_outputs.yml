@@ -1,0 +1,21 @@
+---
+- name: Capture Terraform outputs from remote state (local driver)
+  cloud.terraform.terraform_output:
+    project_path: "{{ terraform_project_path }}"
+    backend_config: "{{ terraform_backend_config }}"
+  register: terraform_outputs
+
+- name: Publish Terraform outputs as facts
+  ansible.builtin.set_fact:
+    tf_builder_instance_id: "{{ terraform_outputs.outputs.builder_instance_id.value | default('') }}"
+    tf_builder_public_ip: "{{ terraform_outputs.outputs.builder_public_ip.value | default('') }}"
+    tf_builder_private_ip: "{{ terraform_outputs.outputs.builder_private_ip.value | default('') }}"
+    tf_vpc_id: "{{ terraform_outputs.outputs.vpc_id.value | default('') }}"
+    tf_image_pipeline_arn: "{{ terraform_outputs.outputs.image_pipeline_arn.value | default('') }}"
+    tf_image_pipeline_name: "{{ terraform_outputs.outputs.image_pipeline_name.value | default('') }}"
+    tf_public_subnet_id: "{{ (terraform_outputs.outputs.public_subnet_ids.value | default([]) | first) | default('') }}"
+    tf_sap_instance_id: "{{ terraform_outputs.outputs.sap_instance_id.value | default('', true) | string }}"
+    tf_db2_instance_id: "{{ terraform_outputs.outputs.db2_instance_id.value | default('', true) | string }}"
+    tf_sap_private_ip: "{{ terraform_outputs.outputs.sap_private_ip.value | default('', true) | string }}"
+    tf_db2_private_ip: "{{ terraform_outputs.outputs.db2_private_ip.value | default('', true) | string }}"
+  when: terraform_outputs.outputs is defined

@@ -1,0 +1,9 @@
+---
+golden_image_method: ansible
+golden_image_wait: true
+golden_image_wait_timeout: 1800
+destroy_builder_after_ami: true
+builder_ssh_user: ec2-user
+builder_ssh_private_key_file: ""
+image_builder_poll_retries: 60
+image_builder_poll_delay: 60

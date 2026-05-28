@@ -1,0 +1,5 @@
+---
+# Day 0.5 / Day 1 — IBM Db2 preconfigure (PPT slot: not sap_hana_preconfigure)
+- name: Apply IBM Db2 preconfigure
+  ansible.builtin.include_role:
+    name: db2_prep

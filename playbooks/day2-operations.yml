@@ -1,0 +1,9 @@
+---
+# Day 2 — Run with tags, e.g. ansible-playbook day2-operations.yml --tags start
+- name: Day 2 — SAP and IBM Db2 operations
+  hosts: sap_mod
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - day2_sap_operations

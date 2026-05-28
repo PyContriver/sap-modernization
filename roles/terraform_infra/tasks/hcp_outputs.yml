@@ -1,0 +1,52 @@
+---
+# Map HCP Terraform workspace outputs to the same facts used by golden_image / sap_deploy
+- name: Get workspace current state version
+  ansible.builtin.uri:
+    url: "{{ hcp_terraform_host | regex_replace('/$', '') }}/api/v2/workspaces/{{ _hcp_workspace_id }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _hcp_tf_token }}"
+      Content-Type: application/vnd.api+json
+    return_content: true
+    status_code: [200]
+  register: hcp_workspace
+  no_log: true
+
+- name: Set state version id
+  ansible.builtin.set_fact:
+    _hcp_state_version_id: "{{ hcp_workspace.json.data.relationships['current-state-version'].data.id }}"
+
+- name: List outputs for current state version
+  ansible.builtin.uri:
+    url: "{{ hcp_terraform_host | regex_replace('/$', '') }}/api/v2/state-versions/{{ _hcp_state_version_id }}/outputs"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _hcp_tf_token }}"
+      Content-Type: application/vnd.api+json
+    return_content: true
+    status_code: [200]
+  register: hcp_state_outputs
+  no_log: true
+
+- name: Build output lookup table
+  ansible.builtin.set_fact:
+    _hcp_outputs: "{{ _hcp_outputs | default({}) | combine({
+      item.attributes.name: item.attributes.value
+    }) }}"
+  loop: "{{ hcp_state_outputs.json.data }}"
+  when: hcp_state_outputs.json.data is defined
+
+- name: Publish Terraform outputs as facts (HCP)
+  ansible.builtin.set_fact:
+    tf_builder_instance_id: "{{ _hcp_outputs.builder_instance_id | default('', true) | string }}"
+    tf_builder_public_ip: "{{ _hcp_outputs.builder_public_ip | default('', true) | string }}"
+    tf_builder_private_ip: "{{ _hcp_outputs.builder_private_ip | default('', true) | string }}"
+    tf_vpc_id: "{{ _hcp_outputs.vpc_id | default('', true) | string }}"
+    tf_image_pipeline_arn: "{{ _hcp_outputs.image_pipeline_arn | default('', true) | string }}"
+    tf_image_pipeline_name: "{{ _hcp_outputs.image_pipeline_name | default('', true) | string }}"
+    tf_public_subnet_id: "{{ (_hcp_outputs.public_subnet_ids | default([]) | first) | default('', true) | string }}"
+    tf_sap_instance_id: "{{ _hcp_outputs.sap_instance_id | default('', true) | string }}"
+    tf_db2_instance_id: "{{ _hcp_outputs.db2_instance_id | default('', true) | string }}"
+    tf_sap_private_ip: "{{ _hcp_outputs.sap_private_ip | default('', true) | string }}"
+    tf_db2_private_ip: "{{ _hcp_outputs.db2_private_ip | default('', true) | string }}"
+  when: _hcp_outputs is defined

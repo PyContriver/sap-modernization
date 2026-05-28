@@ -1,0 +1,82 @@
+---
+# Pipeline driver:
+#   hcp    — HCP Terraform API (hashicorp.terraform) [DEFAULT — requires AH token + TF_TOKEN]
+#   local  — Terraform CLI + S3 (cloud.terraform) — fallback only
+terraform_driver: hcp
+
+terraform_project_path: "{{ playbook_dir }}/../terraform"
+terraform_state: present
+terraform_force_init: true
+
+# HCP Terraform / TFE — default integration (hashicorp.terraform collection)
+hcp_terraform_host: "https://app.terraform.io"
+hcp_terraform_organization: "REPLACE-org"
+hcp_terraform_workspace: "sap-modernization-demo"
+hcp_terraform_workspace_id: ""  # ws-xxxxxxxx (preferred) or use org + workspace name above
+hcp_terraform_validate_certs: true
+hcp_terraform_poll_timeout: 1800
+# Set via AAP credential: TF_TOKEN or hcp_terraform_token
+# hcp_terraform_run_variables: auto-built from terraform_variables when empty
+
+# S3 remote state — only when terraform_driver: local (cloud.terraform)
+terraform_backend_config:
+  bucket: "{{ tf_state_bucket | default('REPLACE-sap-modernization-tfstate') }}"
+  key: "{{ tf_state_key | default('demo/sap-modernization.tfstate') }}"
+  region: "{{ aws_region | default('us-east-1') }}"
+  dynamodb_table: "{{ tf_lock_table | default('REPLACE-sap-modernization-tflock') }}"
+  encrypt: "true"
+
+aws_region: us-east-1
+environment: demo
+project_name: sap-mod
+
+# Golden image method: ansible | image_builder | packer
+#   ansible        — OSS: Ansible roles + ec2_ami (recommended open-source default)
+#   image_builder  — OSS-friendly on AWS: EC2 Image Builder (no Packer binary)
+#   packer         — Packer HCL in packer/ (BSL; same roles via ansible provisioner)
+golden_image_method: ansible
+packer_project_path: "{{ playbook_dir }}/../packer"
+packer_instance_type: m5.xlarge
+packer_ssh_username: ec2-user
+packer_build_timeout: 3600
+golden_image_name_prefix: "{{ project_name }}-{{ environment }}-sap-db2"
+golden_image_wait: true
+golden_image_wait_timeout: 1800
+destroy_builder_after_ami: true
+builder_ssh_user: ec2-user
+# Private key for ssh_key_name — set SSH_PRIVATE_KEY_FILE in .env (see load-env.sh auto-detect)
+builder_ssh_private_key_file: ""
+image_builder_version: "1.0.0"
+image_builder_poll_retries: 60
+image_builder_poll_delay: 60
+
+# SAP / IBM Db2 (not HANA in this phase)
+sap_sid: DEV
+db2_instance_name: db2inst1
+db2_port: 50000
+sap_workload_db: ibm_db2
+
+# PPT pipeline stages (site.yml)
+run_day0: true
+run_day05: true
+run_day0_deploy: true
+run_day1: false
+run_day2: false
+enable_terraform_rollback: true
+postflight_verify_builder_ssh: true
+postflight_ssh_timeout: 300
+vpc_cidr: "10.40.0.0/16"
+inventory_export_path: "{{ playbook_dir }}/../inventory/generated/hosts.yml"
+terraform_outputs_cache_path: "{{ playbook_dir }}/../inventory/generated/terraform_outputs.yml"
+
+# Legacy flags (still honored by older playbooks)
+run_terraform_infra: true
+run_golden_image: true
+run_terraform_deploy: true
+
+# Day 1 — set true when IBM Db2 / SAP media is available
+db2_perform_install: false
+db2_install_media_path: ""
+sap_perform_swpm: false
+sap_swpm_inifile: ""
+sap_swpm_media_path: ""

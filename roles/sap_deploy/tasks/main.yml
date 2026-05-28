@@ -1,0 +1,27 @@
+---
+# Phase 3: deploy SAP + Db2 EC2 from golden AMI via Terraform variables
+- name: Require golden AMI from image build stage
+  ansible.builtin.assert:
+    that:
+      - golden_ami_id is defined
+      - golden_ami_id | length > 0
+    fail_msg: "Run golden_image role first to produce golden_ami_id."
+
+- name: Merge deploy-time Terraform variables
+  ansible.builtin.set_fact:
+    terraform_variables: "{{ terraform_variables | combine({
+      'golden_ami_id': golden_ami_id,
+      'deploy_builder': false,
+      'deploy_image_builder': false,
+      'deploy_sap_stack': true
+    }, recursive=True) }}"
+
+- name: Apply SAP workload stack with Terraform
+  ansible.builtin.include_role:
+    name: terraform_infra
+
+- name: Show deployed workload endpoints
+  ansible.builtin.debug:
+    msg: >-
+      SAP/Db2 stack requested. Retrieve private IPs from Terraform outputs
+      (sap_private_ip, db2_private_ip) or AWS console.

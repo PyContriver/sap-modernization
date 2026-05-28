@@ -1,0 +1,36 @@
+---
+# Day 1 — IBM Db2 install (licensed media required in production)
+- name: Verify Db2 preconfigure completed
+  ansible.builtin.stat:
+    path: /etc/db2-prep-ready
+  register: db2_prep_flag
+  failed_when: not db2_prep_flag.stat.exists
+
+- name: Check for Db2 install response file
+  ansible.builtin.stat:
+    path: "/db2/{{ db2_instance_name }}/db2server.rsp"
+  register: db2_rsp
+
+- name: Placeholder — IBM Db2 silent install
+  ansible.builtin.debug:
+    msg: >-
+      Install Db2 with IBM installer and db2server.rsp on {{ inventory_hostname }}.
+      Example: sudo -u {{ db2_instance_name }} /path/to/db2setup -r /db2/{{ db2_instance_name }}/db2server.rsp
+  when: db2_perform_install | default(false) | bool == false
+
+- name: IBM Db2 install (when db2_install_media_path is set)
+  ansible.builtin.command:
+    cmd: "{{ db2_install_media_path }}/db2setup -r /db2/{{ db2_instance_name }}/db2server.rsp -l /db2/{{ db2_instance_name }}/db2install.log"
+    creates: "/db2/{{ db2_instance_name }}/NODE0000/SQL00001.000"
+  become: true
+  become_user: root
+  when:
+    - db2_perform_install | default(false) | bool
+    - db2_install_media_path | default('') | length > 0
+    - db2_rsp.stat.exists
+
+- name: Mark Db2 install phase complete (demo)
+  ansible.builtin.copy:
+    dest: /etc/db2-install-ready
+    content: "db2_instance={{ db2_instance_name }}\nport={{ db2_port }}\n"
+    mode: "0644"

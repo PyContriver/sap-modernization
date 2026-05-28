@@ -1,0 +1,105 @@
+---
+# Day 0 — Terraform/HCP outputs → Ansible inventory (PPT inventory sync)
+- name: Build host maps from Terraform outputs
+  ansible.builtin.set_fact:
+    sap_mod_builder_hosts: "{{ {tf_builder_instance_id: {'ansible_host': tf_builder_public_ip, 'ansible_user': builder_ssh_user | default('ec2-user')}} if tf_builder_public_ip | default('') | length > 0 else {} }}"
+    sap_mod_db2_hosts: "{{ {tf_db2_instance_id: {'ansible_host': tf_db2_private_ip, 'ansible_user': builder_ssh_user | default('ec2-user'), 'db2_instance_name': db2_instance_name, 'sap_sid': sap_sid}} if tf_db2_private_ip | default('') | length > 0 else {} }}"
+    sap_mod_sap_hosts: "{{ {tf_sap_instance_id: {'ansible_host': tf_sap_private_ip, 'ansible_user': builder_ssh_user | default('ec2-user'), 'sap_sid': sap_sid, 'db2_host': tf_db2_private_ip | default('')}} if tf_sap_private_ip | default('') | length > 0 else {} }}"
+
+- name: Add golden image builder host
+  when: tf_builder_public_ip | default('') | length > 0
+  ansible.builtin.add_host:
+    name: "{{ tf_builder_instance_id }}"
+    ansible_host: "{{ tf_builder_public_ip }}"
+    ansible_user: "{{ builder_ssh_user | default('ec2-user') }}"
+    ansible_ssh_private_key_file: >-
+      {{ builder_ssh_private_key_file if (builder_ssh_private_key_file | default('') | length > 0) else omit }}
+    groups:
+      - sap_mod
+      - sap_builders
+      - sap_mod_builder
+    sap_mod_role: golden_builder
+
+- name: Add IBM Db2 database host
+  when: tf_db2_private_ip | default('') | length > 0
+  ansible.builtin.add_host:
+    name: "{{ tf_db2_instance_id }}"
+    ansible_host: "{{ tf_db2_private_ip }}"
+    ansible_user: "{{ builder_ssh_user | default('ec2-user') }}"
+    groups:
+      - sap_mod
+      - sap_db2
+      - sap_mod_db2
+    sap_mod_role: ibm_db2
+    db2_instance_name: "{{ db2_instance_name }}"
+    sap_sid: "{{ sap_sid }}"
+
+- name: Add SAP application host
+  when: tf_sap_private_ip | default('') | length > 0
+  ansible.builtin.add_host:
+    name: "{{ tf_sap_instance_id }}"
+    ansible_host: "{{ tf_sap_private_ip }}"
+    ansible_user: "{{ builder_ssh_user | default('ec2-user') }}"
+    groups:
+      - sap_mod
+      - sap_app
+      - sap_mod_sap
+    sap_mod_role: sap_application
+    sap_sid: "{{ sap_sid }}"
+    db2_host: "{{ tf_db2_private_ip | default('') }}"
+
+- name: Build generated inventory structure
+  ansible.builtin.set_fact:
+    sap_mod_inventory:
+      all:
+        children:
+          sap_mod:
+            children:
+              sap_builders:
+                hosts: "{{ sap_mod_builder_hosts }}"
+              sap_db2:
+                hosts: "{{ sap_mod_db2_hosts }}"
+              sap_app:
+                hosts: "{{ sap_mod_sap_hosts }}"
+
+- name: Write generated inventory for AAP (optional file export)
+  when: inventory_export_path | default('') | length > 0
+  ansible.builtin.copy:
+    dest: "{{ inventory_export_path }}"
+    mode: "0644"
+    content: "{{ sap_mod_inventory | to_nice_yaml }}"
+
+- name: Cache Terraform outputs for standalone Day 0.5+ playbooks
+  when: terraform_outputs_cache_path | default('') | length > 0
+  ansible.builtin.copy:
+    dest: "{{ terraform_outputs_cache_path }}"
+    mode: "0644"
+    content: |
+      ---
+      tf_builder_instance_id: "{{ tf_builder_instance_id | default('') }}"
+      tf_builder_public_ip: "{{ tf_builder_public_ip | default('') }}"
+      tf_builder_private_ip: "{{ tf_builder_private_ip | default('') }}"
+      tf_vpc_id: "{{ tf_vpc_id | default('') }}"
+      tf_public_subnet_id: "{{ tf_public_subnet_id | default('') }}"
+      tf_image_pipeline_arn: "{{ tf_image_pipeline_arn | default('') }}"
+      tf_image_pipeline_name: "{{ tf_image_pipeline_name | default('') }}"
+      tf_sap_instance_id: "{{ tf_sap_instance_id | default('') }}"
+      tf_db2_instance_id: "{{ tf_db2_instance_id | default('') }}"
+      tf_sap_private_ip: "{{ tf_sap_private_ip | default('') }}"
+      tf_db2_private_ip: "{{ tf_db2_private_ip | default('') }}"
+
+- name: Publish inventory sync stats for AAP workflow
+  ansible.builtin.set_stats:
+    data:
+      sap_mod_inventory_hosts: "{{ (sap_mod_builder_hosts | default({}) | length) + (sap_mod_db2_hosts | default({}) | length) + (sap_mod_sap_hosts | default({}) | length) }}"
+      tf_builder_public_ip: "{{ tf_builder_public_ip | default('') }}"
+      tf_db2_private_ip: "{{ tf_db2_private_ip | default('') }}"
+      tf_sap_private_ip: "{{ tf_sap_private_ip | default('') }}"
+    per_host: false
+
+- name: Inventory sync summary
+  ansible.builtin.debug:
+    msg: >-
+      Inventory: builders={{ sap_mod_builder_hosts | default({}) | length }},
+      db2={{ sap_mod_db2_hosts | default({}) | length }},
+      sap={{ sap_mod_sap_hosts | default({}) | length }}

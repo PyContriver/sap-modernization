@@ -1,0 +1,96 @@
+---
+# Day 0 — rollback: destroy via hashicorp.terraform when Terraform apply fails (not postflight)
+- name: Rollback — destroy infrastructure with HCP Terraform
+  when: terraform_driver | default('hcp') == 'hcp'
+  block:
+    - name: Prepare HCP token and run variables for destroy
+      ansible.builtin.include_role:
+        name: terraform_infra
+        tasks_from: hcp_prepare
+
+    - name: Upload configuration for destroy run
+      hashicorp.terraform.configuration_version:
+        workspace_id: "{{ hcp_terraform_workspace_id if (hcp_terraform_workspace_id | default('') | trim | length > 0) else omit }}"
+        workspace: "{{ hcp_terraform_workspace if (hcp_terraform_workspace_id | default('') | trim | length == 0) else omit }}"
+        organization: "{{ hcp_terraform_organization if (hcp_terraform_workspace_id | default('') | trim | length == 0) else omit }}"
+        configuration_files_path: "{{ terraform_project_path }}"
+        auto_queue_runs: false
+        state: present
+        tfe_token: "{{ _hcp_tf_token }}"
+        tfe_address: "{{ hcp_terraform_host | default('https://app.terraform.io') }}"
+        tfe_verify_tls: "{{ hcp_terraform_validate_certs | default(true) }}"
+        poll_interval: 5
+        poll_timeout: 120
+      register: rollback_config
+      no_log: true
+
+    - name: Remember rollback workspace id when set explicitly
+      when: hcp_terraform_workspace_id | default('') | trim | length > 0
+      ansible.builtin.set_fact:
+        _hcp_rollback_workspace_id: "{{ hcp_terraform_workspace_id | trim }}"
+
+    - name: Lookup rollback workspace id by organization and name
+      when: hcp_terraform_workspace_id | default('') | trim | length == 0
+      ansible.builtin.uri:
+        url: >-
+          {{ hcp_terraform_host | default('https://app.terraform.io') | regex_replace('/$', '') }}/api/v2/organizations/{{
+          hcp_terraform_organization }}/workspaces/{{ hcp_terraform_workspace }}
+        method: GET
+        headers:
+          Authorization: "Bearer {{ _hcp_tf_token }}"
+          Content-Type: application/vnd.api+json
+        return_content: true
+        status_code: [200]
+      register: _hcp_rollback_ws_lookup
+      no_log: true
+
+    - name: Set rollback workspace id from HCP API lookup
+      when: hcp_terraform_workspace_id | default('') | trim | length == 0
+      ansible.builtin.set_fact:
+        _hcp_rollback_workspace_id: "{{ _hcp_rollback_ws_lookup.json.data.id }}"
+
+    - name: Create destroy run
+      hashicorp.terraform.run:
+        workspace_id: "{{ _hcp_rollback_workspace_id }}"
+        configuration_version: "{{ rollback_config.id }}"
+        run_message: "AAP rollback destroy - {{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
+        state: present
+        tfe_token: "{{ _hcp_tf_token }}"
+        tfe_address: "{{ hcp_terraform_host | default('https://app.terraform.io') }}"
+        tfe_verify_tls: "{{ hcp_terraform_validate_certs | default(true) }}"
+        variables: "{{ hcp_terraform_run_variables }}"
+        is_destroy: true
+        auto_apply: true
+        poll: true
+        poll_interval: 10
+        poll_timeout: "{{ hcp_terraform_poll_timeout | default(1800) }}"
+      register: rollback_run
+      no_log: true
+
+    - name: Show rollback destroy run result
+      ansible.builtin.debug:
+        msg:
+          run_id: "{{ rollback_run.id | default('n/a') }}"
+          status: "{{ rollback_run.status | default('n/a') }}"
+          workspace_id: "{{ _hcp_rollback_workspace_id }}"
+
+  rescue:
+    - name: Rollback destroy did not complete
+      ansible.builtin.debug:
+        msg: >-
+          HCP destroy run failed or was not applied. Review the workspace '{{
+          hcp_terraform_workspace | default(hcp_terraform_workspace_id) }}' in HCP Terraform.
+          Infrastructure may still exist; clean up manually if needed.
+
+- name: Rollback — destroy with cloud.terraform (local driver)
+  when: terraform_driver | default('hcp') == 'local'
+  cloud.terraform.terraform:
+    project_path: "{{ terraform_project_path }}"
+    state: absent
+    force_init: true
+    backend_config: "{{ terraform_backend_config }}"
+    lock: true
+
+- name: Rollback complete
+  ansible.builtin.debug:
+    msg: "Terraform destroy run requested after failed apply"

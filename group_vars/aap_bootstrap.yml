@@ -1,0 +1,15 @@
+---
+# Names for objects created/updated by playbooks/aap-bootstrap.yml
+aap_organization: "{{ lookup('env', 'AAP_ORGANIZATION') | default('Default', true) }}"
+aap_credential_aws_name: "{{ lookup('env', 'AAP_CREDENTIAL_AWS_NAME') | default('SAP Mod - AWS', true) }}"
+aap_credential_ssh_name: "{{ lookup('env', 'AAP_CREDENTIAL_SSH_NAME') | default('SAP Mod - Builder SSH', true) }}"
+aap_credential_hcp_name: "{{ lookup('env', 'AAP_CREDENTIAL_HCP_NAME') | default('SAP Mod - HCP Terraform', true) }}"
+aap_credential_hcp_type_name: HCP Terraform API
+
+# Job templates to patch with extra_vars (must already exist with these names)
+aap_sync_job_template_extra_vars: true
+aap_job_template_names:
+  - SAP Mod - Day 0 Infrastructure
+  - SAP Mod - Day 0.5 Golden Image
+  - SAP Mod - Day 0 Deploy Workload
+  - SAP Mod - Day 1 Install

@@ -1,0 +1,12 @@
+---
+- name: Select Terraform integration driver
+  ansible.builtin.set_fact:
+    _use_hcp: "{{ terraform_driver | default('hcp') in ['hcp', 'hashicorp', 'tfe'] }}"
+
+- name: Run Terraform via HCP/TFE API (hashicorp.terraform) — default
+  when: _use_hcp | bool
+  ansible.builtin.include_tasks: hcp.yml
+
+- name: Run Terraform via CLI with remote state (cloud.terraform) — optional fallback
+  when: not (_use_hcp | bool)
+  ansible.builtin.include_tasks: local.yml

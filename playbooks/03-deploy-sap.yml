@@ -1,0 +1,12 @@
+---
+- name: Deploy SAP + Db2 workload
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  vars:
+    golden_ami_id: "{{ golden_ami_id | mandatory }}"
+  roles:
+    - sap_deploy

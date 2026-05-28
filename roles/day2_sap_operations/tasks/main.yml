@@ -1,0 +1,41 @@
+---
+# Day 2 — SAP + IBM Db2 operations (run with tags, e.g. --tags start)
+- name: Stop SAP application tier (ordered)
+  ansible.builtin.debug:
+    msg: "sapcontrol -nr 00 -function Stop"
+  tags: [never, stop, day2]
+
+- name: Stop IBM Db2
+  ansible.builtin.debug:
+    msg: "db2stop for {{ db2_instance_name }}"
+  tags: [never, stop, day2]
+
+- name: Start IBM Db2
+  ansible.builtin.debug:
+    msg: "db2start for {{ db2_instance_name }}"
+  tags: [never, start, day2]
+
+- name: Start SAP application tier
+  ansible.builtin.debug:
+    msg: "sapcontrol -nr 00 -function Start"
+  tags: [never, start, day2]
+
+- name: Db2 HADR / replication status check
+  ansible.builtin.debug:
+    msg: "db2pd -db <dbname> -hadr on {{ inventory_hostname }}"
+  tags: [never, monitor, day2]
+
+- name: SAP-aware patching workflow placeholder
+  ansible.builtin.debug:
+    msg: "stop SAP → patch RHEL → reboot → start SAP → validate"
+  tags: [never, patch, day2]
+
+- name: Db2 backup orchestration placeholder
+  ansible.builtin.debug:
+    msg: "db2 backup / log archive / backint integration"
+  tags: [never, backup, day2]
+
+- name: Compliance / CIS scan placeholder
+  ansible.builtin.debug:
+    msg: "ansible-lockdown or OpenSCAP SAP profile"
+  tags: [never, compliance, day2]

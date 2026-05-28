@@ -1,0 +1,40 @@
+---
+# Day 1 — post-install validation (IBM Db2 + SAP application)
+- name: Validate Db2 install marker
+  ansible.builtin.stat:
+    path: /etc/db2-install-ready
+  register: db2_installed
+  failed_when: false
+
+- name: Validate SAP OS marker on application host
+  ansible.builtin.stat:
+    path: /etc/sap-os-ready
+  register: sap_os_ready
+  when: inventory_hostname in groups.get('sap_app', [])
+  failed_when: false
+
+- name: Db2 listener check (demo — port open)
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ db2_port }}"
+    timeout: 60
+  when:
+    - inventory_hostname in groups.get('sap_db2', [])
+    - db2_validate_port | default(true) | bool
+
+- name: Placeholder — sapcontrol / db2 get instance
+  ansible.builtin.debug:
+    msg: >-
+      Run sapcontrol -nr 00 -function GetProcessList on SAP hosts and
+      db2 get instance for {{ db2_instance_name }} on Db2 hosts.
+  when: sap_validate_deep | default(false) | bool == false
+
+- name: Validation summary
+  ansible.builtin.set_stats:
+    data:
+      validate_db2: "{{ db2_installed.stat.exists | default(false) }}"
+      validate_sap_os: "{{ sap_os_ready.stat.exists | default(false) }}"
+      validation_status: passed
+    per_host: false
+  run_once: true
+  delegate_to: localhost

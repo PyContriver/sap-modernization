@@ -1,0 +1,5 @@
+---
+# Day 0.5 / Day 1 — OS prep (PPT: sap_general_preconfigure; maps to RHEL SAP baseline)
+- name: Apply SAP general OS preconfigure
+  ansible.builtin.include_role:
+    name: sap_os_prep

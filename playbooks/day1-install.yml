@@ -1,0 +1,56 @@
+---
+# Day 1 — SAP + IBM Db2 install on hosts from inventory sync (PPT; no HANA)
+# AAP Workflow node 3 — SAP install step
+- name: Day 1 — OS prep, Db2 install, SAP SWPM, validate
+  hosts: sap_mod
+  gather_facts: true
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+
+  tasks:
+    - name: OS prep on all SAP mod hosts (idempotent)
+      ansible.builtin.include_role:
+        name: sap_general_preconfigure
+      tags: [os_prep, day1]
+
+    - name: IBM Db2 preconfigure on database tier
+      ansible.builtin.include_role:
+        name: sap_db2_preconfigure
+      when: inventory_hostname in groups.get('sap_db2', []) or inventory_hostname in groups.get('sap_mod_db2', [])
+      tags: [os_prep, db2, day1]
+
+    - name: NetWeaver preconfigure on application tier
+      ansible.builtin.include_role:
+        name: sap_netweaver_preconfigure
+      when: inventory_hostname in groups.get('sap_app', []) or inventory_hostname in groups.get('sap_mod_sap', [])
+      tags: [os_prep, sap, day1]
+
+- name: Day 1 — Db2 install
+  hosts: sap_db2:sap_mod_db2
+  gather_facts: false
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - db2_install
+  tags: [db2_install, day1]
+
+- name: Day 1 — SAP SWPM
+  hosts: sap_app:sap_mod_sap
+  gather_facts: false
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - sap_swpm_install
+  tags: [swpm, day1]
+
+- name: Day 1 — Validate
+  hosts: sap_mod
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - sap_validate
+  tags: [validate, day1]

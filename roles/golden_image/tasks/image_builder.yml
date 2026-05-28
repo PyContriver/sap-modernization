@@ -1,0 +1,99 @@
+---
+# Path B: EC2 Image Builder pipeline (AWS-managed build VM, no Packer)
+- name: Validate Image Builder pipeline ARN from Terraform
+  ansible.builtin.assert:
+    that:
+      - tf_image_pipeline_arn is defined
+      - tf_image_pipeline_arn | length > 0
+    fail_msg: >-
+      Run terraform with deploy_image_builder=true first
+      (playbooks/01-terraform-infra-imagebuilder.yml).
+
+- name: Start Image Builder pipeline execution
+  ansible.builtin.command:
+    argv:
+      - aws
+      - imagebuilder
+      - start-image-pipeline-execution
+      - --image-pipeline-arn
+      - "{{ tf_image_pipeline_arn }}"
+      - --region
+      - "{{ aws_region }}"
+      - --output
+      - json
+  register: imagebuilder_start
+  changed_when: true
+
+- name: Parse pipeline execution id
+  ansible.builtin.set_fact:
+    imagebuilder_execution_arn: "{{ (imagebuilder_start.stdout | from_json).imagePipelineExecutionArn }}"
+    imagebuilder_execution_id: "{{ (imagebuilder_start.stdout | from_json).imagePipelineExecutionArn | regex_replace('^.*/', '') }}"
+
+- name: Wait for Image Builder pipeline execution to complete
+  ansible.builtin.command:
+    argv:
+      - aws
+      - imagebuilder
+      - get-image-pipeline-execution
+      - --image-pipeline-arn
+      - "{{ tf_image_pipeline_arn }}"
+      - --image-pipeline-execution-id
+      - "{{ imagebuilder_execution_id }}"
+      - --region
+      - "{{ aws_region }}"
+      - --output
+      - json
+  register: imagebuilder_status
+  until: (imagebuilder_status.stdout | from_json).status in ['COMPLETED', 'FAILED', 'CANCELLED']
+  retries: "{{ image_builder_poll_retries | default(60) }}"
+  delay: "{{ image_builder_poll_delay | default(60) }}"
+  changed_when: false
+
+- name: Fail when Image Builder execution did not succeed
+  ansible.builtin.fail:
+    msg: "Image Builder execution {{ imagebuilder_execution_id }} ended with status {{ (imagebuilder_status.stdout | from_json).status }}"
+  when: (imagebuilder_status.stdout | from_json).status != 'COMPLETED'
+
+- name: Resolve golden AMI id from pipeline execution output
+  ansible.builtin.set_fact:
+    golden_ami_id: "{{ (imagebuilder_status.stdout | from_json).outputResources.amis[0].image }}"
+  when:
+    - (imagebuilder_status.stdout | from_json).outputResources is defined
+    - (imagebuilder_status.stdout | from_json).outputResources.amis | default([]) | length > 0
+
+- name: Fallback — latest available AMI from pipeline name prefix
+  when: golden_ami_id is not defined or golden_ami_id | length == 0
+  block:
+    - name: Find newest golden AMI by name prefix
+      amazon.aws.ec2_ami_info:
+        region: "{{ aws_region }}"
+        owners: ["self"]
+        filters:
+          name: "{{ golden_image_name_prefix }}*"
+      register: golden_ami_search
+
+    - name: Pick latest matching AMI
+      ansible.builtin.set_fact:
+        golden_ami_id: "{{ (golden_ami_search.images | sort(attribute='creation_date') | last).image_id }}"
+      when: golden_ami_search.images | length > 0
+
+- name: Require resolved golden AMI id
+  ansible.builtin.assert:
+    that:
+      - golden_ami_id is defined
+      - golden_ami_id | length > 0
+    fail_msg: "Could not resolve AMI from Image Builder execution {{ imagebuilder_execution_id }}."
+
+- name: Publish golden AMI for AAP workflow
+  ansible.builtin.set_stats:
+    data:
+      golden_ami_id: "{{ golden_ami_id }}"
+      golden_image_method: image_builder
+      database_engine: ibm_db2
+    per_host: false
+
+- name: Golden image summary (Image Builder path)
+  ansible.builtin.debug:
+    msg: >-
+      Golden AMI {{ golden_ami_id }} built via EC2 Image Builder
+      (execution {{ imagebuilder_execution_id }})

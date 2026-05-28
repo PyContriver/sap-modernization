@@ -1,0 +1,21 @@
+---
+# Push .env secrets → AAP credentials and sync job-template extra_vars
+# Prereqs: Controller admin API token, collections in requirements-aap-bootstrap.yml
+#
+#   cp .env.aap.example .env.aap
+#   # fill CONTROLLER_HOST, CONTROLLER_OAUTH_TOKEN
+#   source scripts/load-env-aap.sh
+#   ./scripts/bootstrap-aap.sh
+- name: Bootstrap SAP modernization objects on AAP
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+    - ../group_vars/aap_bootstrap.yml
+
+  tasks:
+    - name: Upload credentials and variables to AAP
+      ansible.builtin.include_role:
+        name: aap_bootstrap

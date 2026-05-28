@@ -1,0 +1,43 @@
+---
+# Controller-side: snapshot AMI and optional builder teardown (play 3)
+- name: Create golden AMI from builder instance
+  amazon.aws.ec2_ami:
+    region: "{{ aws_region }}"
+    instance_id: "{{ tf_builder_instance_id }}"
+    name: "{{ golden_image_name_prefix }}-{{ ansible_date_time.epoch }}"
+    description: "SAP modernization golden image (IBM Db2 prep, no HANA)"
+    wait: "{{ golden_image_wait }}"
+    wait_timeout: "{{ golden_image_wait_timeout }}"
+    tags:
+      Name: "{{ golden_image_name_prefix }}"
+      GoldenImage: "true"
+      Workload: sap
+      Database: ibm_db2
+      BuiltBy: ansible-aap
+      Environment: "{{ environment }}"
+  register: golden_ami
+
+- name: Publish golden AMI id for deploy stage
+  ansible.builtin.set_fact:
+    golden_ami_id: "{{ golden_ami.image_id }}"
+
+- name: Publish golden AMI for AAP workflow (Day 0.5 → Day 0 deploy)
+  ansible.builtin.set_stats:
+    data:
+      golden_ami_id: "{{ golden_ami.image_id }}"
+      golden_image_method: ansible
+      database_engine: ibm_db2
+    per_host: false
+
+- name: Terminate builder instance after AMI capture
+  when: destroy_builder_after_ami | bool
+  amazon.aws.ec2_instance:
+    region: "{{ aws_region }}"
+    instance_ids:
+      - "{{ tf_builder_instance_id }}"
+    state: terminated
+    wait: true
+
+- name: Golden image summary (Ansible path)
+  ansible.builtin.debug:
+    msg: "Golden AMI {{ golden_ami_id }} created from builder {{ tf_builder_instance_id }}"

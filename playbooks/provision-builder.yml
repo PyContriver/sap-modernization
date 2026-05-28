@@ -1,0 +1,11 @@
+---
+# Day 0.5 — same roles as Day 1 OS prep (PPT: no duplication)
+- name: Provision golden image builder host
+  hosts: sap_builders
+  gather_facts: true
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - sap_general_preconfigure
+    - sap_db2_preconfigure

@@ -1,0 +1,72 @@
+---
+# HCP Terraform / Terraform Enterprise API (hashicorp.terraform collection).
+# Remote state is stored in the workspace — do not use local backend.tf with this driver.
+- name: Prepare HCP token and run variables
+  ansible.builtin.include_tasks: hcp_prepare.yml
+
+- name: Require HCP Terraform API token
+  ansible.builtin.assert:
+    that:
+      - _hcp_tf_token is defined
+      - _hcp_tf_token | length > 0
+    fail_msg: >-
+      Set hcp_terraform_token or TF_TOKEN (AAP custom credential) for hashicorp.terraform.
+
+- name: Require workspace id or organization + workspace name
+  ansible.builtin.assert:
+    that:
+      - (hcp_terraform_workspace_id | default('') | length > 0)
+        or (
+          (hcp_terraform_organization | default('') | length > 0)
+          and (hcp_terraform_workspace | default('') | length > 0)
+        )
+    fail_msg: >-
+      Set hcp_terraform_workspace_id or both hcp_terraform_organization and hcp_terraform_workspace.
+
+- name: Upload Terraform configuration version
+  hashicorp.terraform.configuration_version:
+    workspace_id: "{{ hcp_terraform_workspace_id if (hcp_terraform_workspace_id | default('') | trim | length > 0) else omit }}"
+    workspace: "{{ hcp_terraform_workspace if (hcp_terraform_workspace_id | default('') | trim | length == 0) else omit }}"
+    organization: "{{ hcp_terraform_organization if (hcp_terraform_workspace_id | default('') | trim | length == 0) else omit }}"
+    configuration_files_path: "{{ terraform_project_path }}"
+    auto_queue_runs: false
+    state: present
+    tfe_token: "{{ _hcp_tf_token }}"
+    tfe_address: "{{ hcp_terraform_host | default('https://app.terraform.io') }}"
+    tfe_verify_tls: "{{ hcp_terraform_validate_certs | default(true) }}"
+    poll_interval: 5
+    poll_timeout: 120
+  register: hcp_config_version
+  no_log: true
+
+- name: Resolve HCP workspace id
+  ansible.builtin.include_tasks: hcp_resolve_workspace.yml
+
+- name: Create and apply Terraform run
+  hashicorp.terraform.run:
+    workspace_id: "{{ _hcp_workspace_id }}"
+    configuration_version: "{{ hcp_config_version.id }}"
+    run_message: "AAP sap-modernization {{ terraform_state }} - {{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
+    state: present
+    tfe_token: "{{ _hcp_tf_token }}"
+    tfe_address: "{{ hcp_terraform_host | default('https://app.terraform.io') }}"
+    tfe_verify_tls: "{{ hcp_terraform_validate_certs | default(true) }}"
+    auto_apply: true
+    poll: true
+    poll_interval: 10
+    poll_timeout: "{{ hcp_terraform_poll_timeout | default(1800) }}"
+    variables: "{{ hcp_terraform_run_variables }}"
+    is_destroy: "{{ terraform_state == 'absent' }}"
+  register: hcp_run
+  no_log: true
+
+- name: Show HCP Terraform run result
+  ansible.builtin.debug:
+    msg:
+      run_id: "{{ hcp_run.id | default('n/a') }}"
+      status: "{{ hcp_run.status | default('n/a') }}"
+      workspace_id: "{{ _hcp_workspace_id }}"
+
+- name: Load Terraform outputs from HCP workspace
+  when: terraform_state == 'present'
+  ansible.builtin.include_tasks: hcp_outputs.yml

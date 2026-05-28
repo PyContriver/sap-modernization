@@ -1,0 +1,63 @@
+---
+# Day 0.5 — Ansible-powered golden images (PPT; replaces Packer; IBM Db2 baked in)
+# Three plays: controller prep → builder provision → controller AMI capture
+- name: Day 0.5 — Golden image prepare (controller)
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+
+  tasks:
+    - name: Load Day 0 Terraform outputs (cache, inventory, or HCP API)
+      when: golden_image_method | default('ansible') == 'ansible'
+      ansible.builtin.include_role:
+        name: terraform_load_outputs
+
+    - name: Prepare builder host for golden image (ansible path)
+      when: golden_image_method | default('ansible') == 'ansible'
+      ansible.builtin.include_role:
+        name: golden_image
+        tasks_from: ansible_prepare
+
+    - name: Build golden image (image_builder or packer path)
+      when: golden_image_method | default('ansible') != 'ansible'
+      ansible.builtin.include_role:
+        name: golden_image
+
+- name: Day 0.5 — Provision golden image builder
+  hosts: sap_builders
+  gather_facts: true
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  vars:
+    ansible_ssh_private_key_file: "{{ builder_ssh_private_key_file }}"
+    ansible_python_interpreter: auto_silent
+  roles:
+    - sap_general_preconfigure
+    - sap_db2_preconfigure
+
+- name: Day 0.5 — Capture golden AMI (controller)
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+
+  tasks:
+    - name: Load Day 0 Terraform outputs for finalize
+      when: golden_image_method | default('ansible') == 'ansible'
+      ansible.builtin.include_role:
+        name: terraform_load_outputs
+
+    - name: Create golden AMI from builder (ansible path)
+      when: golden_image_method | default('ansible') == 'ansible'
+      ansible.builtin.include_role:
+        name: golden_image
+        tasks_from: ansible_finalize

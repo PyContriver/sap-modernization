@@ -1,0 +1,84 @@
+---
+# Path C: HashiCorp Packer (BSL) — classic golden-image demo aligned with Terraform → Packer → deploy.
+# Fully OSS without Packer binary: use golden_image_method ansible or image_builder instead.
+- name: Locate Packer project directory
+  ansible.builtin.set_fact:
+    packer_project_path: "{{ packer_project_path | default(playbook_dir + '/../packer') }}"
+
+- name: Verify Packer binary is installed
+  ansible.builtin.command:
+    cmd: packer version
+  register: packer_version_check
+  changed_when: false
+  failed_when: packer_version_check.rc != 0
+
+- name: Show Packer version
+  ansible.builtin.debug:
+    msg: "{{ packer_version_check.stdout_lines[0] | default(packer_version_check.stdout) }}"
+
+- name: Write ephemeral Packer variables file
+  ansible.builtin.copy:
+    dest: "{{ packer_project_path }}/.packer-run.auto.pkrvars.hcl"
+    mode: "0600"
+    content: |
+      region            = "{{ aws_region }}"
+      source_ami        = "{{ base_ami_id }}"
+      instance_type     = "{{ packer_instance_type | default('m5.xlarge') }}"
+      ssh_username      = "{{ packer_ssh_username | default('ec2-user') }}"
+      ami_name_prefix   = "{{ golden_image_name_prefix }}"
+      subnet_id         = "{{ packer_subnet_id | default(tf_public_subnet_id | default('', true), true) }}"
+      environment       = "{{ environment }}"
+      sap_sid           = "{{ sap_sid }}"
+      db2_instance_name = "{{ db2_instance_name }}"
+  no_log: false
+
+- name: Initialize Packer plugins
+  ansible.builtin.command:
+    chdir: "{{ packer_project_path }}"
+    cmd: packer init sap-db2-golden.pkr.hcl
+  changed_when: true
+
+- name: Build golden AMI with Packer
+  ansible.builtin.command:
+    chdir: "{{ packer_project_path }}"
+    cmd: >-
+      packer build
+      -var-file=.packer-run.auto.pkrvars.hcl
+      -machine-readable
+      sap-db2-golden.pkr.hcl
+  register: packer_build
+  async: "{{ packer_build_timeout | default(3600) }}"
+  poll: 30
+  changed_when: true
+
+- name: Read Packer manifest
+  ansible.builtin.slurp:
+    src: "{{ packer_project_path }}/manifest.json"
+  register: packer_manifest
+
+- name: Publish golden AMI id from Packer manifest
+  ansible.builtin.set_fact:
+    golden_ami_id: "{{ (packer_manifest.content | b64decode | from_json).builds[-1].artifact_id | regex_replace('^.*:ami-', 'ami-') }}"
+  when: packer_manifest.content is defined
+
+- name: Fallback — parse machine-readable Packer output for AMI
+  when: golden_ami_id is not defined or golden_ami_id | length == 0
+  ansible.builtin.set_fact:
+    golden_ami_id: "{{ packer_build.stdout_lines | select('search', ',artifact,0,id,') | map('regex_replace', '^.*,artifact,0,id,', '') | map('regex_replace', '^[^:]*:ami-', 'ami-') | list | last | default('') }}"
+
+- name: Require golden AMI from Packer build
+  ansible.builtin.assert:
+    that:
+      - golden_ami_id is defined
+      - golden_ami_id | length > 0
+      - golden_ami_id is match('^ami-')
+    fail_msg: "Packer build did not produce a discoverable AMI id. Check {{ packer_project_path }}/manifest.json"
+
+- name: Remove ephemeral Packer variables file
+  ansible.builtin.file:
+    path: "{{ packer_project_path }}/.packer-run.auto.pkrvars.hcl"
+    state: absent
+
+- name: Golden image summary (Packer path)
+  ansible.builtin.debug:
+    msg: "Golden AMI {{ golden_ami_id }} built with Packer ({{ packer_project_path }})"

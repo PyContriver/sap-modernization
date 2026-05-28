@@ -1,0 +1,18 @@
+# OPTIONAL — only for terraform_driver: local (cloud.terraform CLI + S3 state).
+#
+# Default pipeline uses hashicorp.terraform (HCP Terraform / TFE workspace state).
+# Do NOT add backend.tf to the bundle uploaded to HCP unless your workspace uses it.
+#
+# For local CLI fallback:
+#   cp backend.tf.example backend.tf
+#   ./scripts/bootstrap-tf-state.sh
+
+terraform {
+  backend "s3" {
+    bucket         = "REPLACE-sap-modernization-tfstate"
+    key            = "demo/sap-modernization.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "REPLACE-sap-modernization-tflock"
+    encrypt        = true
+  }
+}

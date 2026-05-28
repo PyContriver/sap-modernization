@@ -1,0 +1,19 @@
+---
+# Certified hashicorp.terraform from Automation Hub + Galaxy collections
+# Prerequisites: AH token in ansible.cfg or ANSIBLE_GALAXY_SERVER_AUTOMATION_HUB_TOKEN
+#
+#   ansible-galaxy collection install -r requirements.yml
+#
+# Fallback without Hub: requirements-local.yml + terraform_driver: local
+collections:
+  - name: hashicorp.terraform
+    source: https://console.redhat.com/api/automation-hub/content/published/
+  - name: amazon.aws
+    version: ">=7.0.0"
+  - name: ansible.posix
+    version: ">=1.5.0"
+  # Optional — only needed if you use terraform_driver: local
+  - name: cloud.terraform
+    version: ">=2.0.0"
+
+roles: []

@@ -1,0 +1,30 @@
+---
+# Day 1 — NetWeaver / S/4 filesystem and user layout (IBM Db2 backend)
+- name: Create SAP NetWeaver directory structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "/usr/sap/{{ sap_sid }}"
+    - "/usr/sap/{{ sap_sid }}/SYS"
+    - "/sapmnt/{{ sap_sid }}"
+    - "/sapmnt/{{ sap_sid }}/global"
+
+- name: Create sapadm user for application tier
+  ansible.builtin.user:
+    name: sapadm
+    system: false
+    shell: /bin/bash
+    home: "/home/sapadm"
+    create_home: true
+  ignore_errors: true
+
+- name: Mark NetWeaver preconfigure complete
+  ansible.builtin.copy:
+    dest: /etc/sap-netweaver-preconfigure-ready
+    content: |
+      sap_sid={{ sap_sid }}
+      database={{ sap_workload_db }}
+      db2_instance={{ db2_instance_name }}
+    mode: "0644"

@@ -1,0 +1,52 @@
+---
+# Day 0 — HCP Terraform (hashicorp.terraform) + pre/post-flight + inventory sync
+# AAP Workflow node 1: matches PPT "Terraform step → inventory sync"
+- name: Day 0 — Cloud infrastructure (hashicorp.terraform / HCP)
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+
+  tasks:
+    - name: Pre-flight checks
+      ansible.builtin.include_role:
+        name: terraform_preflight
+
+    - name: Apply infrastructure with hashicorp.terraform
+      block:
+        - name: Terraform plan/apply via HCP
+          ansible.builtin.include_role:
+            name: terraform_infra
+
+      rescue:
+        - name: Rollback infrastructure after failed apply
+          when: enable_terraform_rollback | default(true) | bool
+          ansible.builtin.include_role:
+            name: terraform_rollback
+        - name: Fail job after apply rollback
+          ansible.builtin.fail:
+            msg: >-
+              Day 0 Terraform apply failed — destroy rollback was attempted when
+              enable_terraform_rollback=true. Set enable_terraform_rollback=false to leave
+              partial infrastructure for debugging.
+
+    - name: Post-flight and inventory sync
+      block:
+        - name: Post-flight health checks
+          ansible.builtin.include_role:
+            name: terraform_postflight
+
+        - name: Sync Terraform outputs to Ansible inventory
+          ansible.builtin.include_role:
+            name: terraform_inventory
+
+      rescue:
+        - name: Fail job without destroying infrastructure
+          ansible.builtin.fail:
+            msg: >-
+              Day 0 post-flight or inventory sync failed — HCP apply succeeded and resources
+              were left in place (no auto-destroy). Fix post-flight (e.g. ALLOWED_SSH_CIDR) and
+              re-run Day 0, or destroy manually in HCP/AWS if needed.

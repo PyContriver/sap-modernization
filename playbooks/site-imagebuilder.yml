@@ -1,0 +1,27 @@
+---
+# Full pipeline using EC2 Image Builder instead of Ansible+ec2_ami
+- name: SAP modernization pipeline (EC2 Image Builder golden image)
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  vars:
+    golden_image_method: image_builder
+
+  tasks:
+    - name: Phase 1 — Network + Image Builder pipeline
+      when: run_terraform_infra | bool
+      ansible.builtin.include_role:
+        name: terraform_infra
+
+    - name: Phase 2 — Build golden AMI via EC2 Image Builder
+      when: run_golden_image | bool
+      ansible.builtin.include_role:
+        name: golden_image
+
+    - name: Phase 3 — Deploy SAP + IBM Db2 from golden AMI
+      when: run_terraform_deploy | bool
+      ansible.builtin.include_role:
+        name: sap_deploy

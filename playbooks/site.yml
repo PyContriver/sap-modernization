@@ -1,0 +1,59 @@
+---
+# Full PPT story — Day 0 → 0.5 → deploy → Day 1 (IBM Db2, not HANA)
+# Terraform: hashicorp.terraform → HCP Terraform
+- name: SAP modernization — full pipeline (PPT aligned)
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+
+  tasks:
+    - name: Day 0 — Pre-flight
+      when: run_day0 | default(true) | bool
+      ansible.builtin.include_role:
+        name: terraform_preflight
+
+    - name: Day 0 — Terraform + post-flight + inventory
+      when: run_day0 | default(true) | bool
+      block:
+        - name: Infrastructure apply (HCP)
+          ansible.builtin.include_role:
+            name: terraform_infra
+        - name: Post-flight
+          ansible.builtin.include_role:
+            name: terraform_postflight
+        - name: Inventory sync
+          ansible.builtin.include_role:
+            name: terraform_inventory
+      rescue:
+        - name: Rollback on Day 0 failure
+          when: enable_terraform_rollback | default(true) | bool
+          ansible.builtin.include_role:
+            name: terraform_rollback
+        - ansible.builtin.fail:
+            msg: "Day 0 infrastructure failed"
+
+    - name: Day 0.5 — Golden image (Ansible replaces Packer)
+      when: run_day05 | default(true) | bool
+      ansible.builtin.include_playbook:
+        file: day05-golden-image.yml
+
+    - name: Day 0 — Deploy SAP + Db2 from golden AMI
+      when: run_day0_deploy | default(true) | bool
+      block:
+        - name: Deploy workload
+          ansible.builtin.include_role:
+            name: sap_deploy
+        - name: Post-flight workload
+          ansible.builtin.include_role:
+            name: terraform_postflight
+        - name: Inventory sync for install
+          ansible.builtin.include_role:
+            name: terraform_inventory
+
+    - name: Day 1 — Install and validate (controller triggers parallel job in AAP)
+      when: run_day1 | default(false) | bool
+      ansible.builtin.import_playbook: day1-install.yml

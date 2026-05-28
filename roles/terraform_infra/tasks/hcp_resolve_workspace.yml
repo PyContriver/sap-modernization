@@ -1,0 +1,25 @@
+---
+- name: Remember resolved workspace id when set explicitly
+  when: hcp_terraform_workspace_id | default('') | trim | length > 0
+  ansible.builtin.set_fact:
+    _hcp_workspace_id: "{{ hcp_terraform_workspace_id | trim }}"
+
+- name: Lookup workspace id by organization and name
+  when: hcp_terraform_workspace_id | default('') | trim | length == 0
+  ansible.builtin.uri:
+    url: >-
+      {{ hcp_terraform_host | default('https://app.terraform.io') | regex_replace('/$', '') }}/api/v2/organizations/{{
+      hcp_terraform_organization }}/workspaces/{{ hcp_terraform_workspace }}
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _hcp_tf_token }}"
+      Content-Type: application/vnd.api+json
+    return_content: true
+    status_code: [200]
+  register: _hcp_ws_lookup
+  no_log: true
+
+- name: Set workspace id from HCP API lookup
+  when: hcp_terraform_workspace_id | default('') | trim | length == 0
+  ansible.builtin.set_fact:
+    _hcp_workspace_id: "{{ _hcp_ws_lookup.json.data.id }}"

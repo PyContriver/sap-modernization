@@ -1,0 +1,31 @@
+---
+# Day 0 (continued) — Deploy SAP + IBM Db2 EC2 from golden AMI via HCP Terraform
+# AAP Workflow node after Day 0.5 — uses golden_ami_id from workflow set_stats
+- name: Day 0 — Deploy SAP workload from golden AMI
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+
+  tasks:
+    - name: Require golden AMI
+      ansible.builtin.assert:
+        that:
+          - golden_ami_id is defined
+          - golden_ami_id | length > 0
+        fail_msg: "Provide golden_ami_id from Day 0.5 workflow stats or extra vars"
+
+    - name: Deploy SAP + Db2 EC2
+      ansible.builtin.include_role:
+        name: sap_deploy
+
+    - name: Post-flight on workload
+      ansible.builtin.include_role:
+        name: terraform_postflight
+
+    - name: Inventory sync for Day 1
+      ansible.builtin.include_role:
+        name: terraform_inventory

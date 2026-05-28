@@ -1,0 +1,38 @@
+---
+# Full pipeline: Terraform (VPC) → Packer golden AMI → SAP + Db2 deploy
+- name: SAP modernization pipeline (Packer golden image)
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  vars:
+    golden_image_method: packer
+
+  tasks:
+    - name: Phase 1 — Network only (Packer builds its own EC2)
+      when: run_terraform_infra | bool
+      ansible.builtin.include_role:
+        name: terraform_infra
+      vars:
+        terraform_variables: "{{ terraform_variables | combine({
+          'deploy_builder': false,
+          'deploy_image_builder': false,
+          'deploy_sap_stack': false
+        }, recursive=True) }}"
+
+    - name: Set Packer subnet from Terraform
+      ansible.builtin.set_fact:
+        packer_subnet_id: "{{ tf_public_subnet_id | default('') }}"
+      when: run_terraform_infra | bool
+
+    - name: Phase 2 — Build golden AMI with Packer
+      when: run_golden_image | bool
+      ansible.builtin.include_role:
+        name: golden_image
+
+    - name: Phase 3 — Deploy SAP + IBM Db2 from golden AMI
+      when: run_terraform_deploy | bool
+      ansible.builtin.include_role:
+        name: sap_deploy

@@ -1,0 +1,28 @@
+---
+# Day 1 — S/4 or NetWeaver via SWPM (unattended; requires SAP media)
+- name: Verify SAP OS ready marker
+  ansible.builtin.stat:
+    path: /etc/sap-os-ready
+  register: sap_os_flag
+  failed_when: not sap_os_flag.stat.exists
+
+- name: Placeholder — SWPM unattended install
+  ansible.builtin.debug:
+    msg: >-
+      SWPM install for SID {{ sap_sid }} against IBM Db2 {{ db2_instance_name }} on {{ db2_host | default('db2-host') }}.
+      Provide sap_swpm_inifile and sap_swpm_media_path to enable automation.
+  when: sap_perform_swpm | default(false) | bool == false
+
+- name: SWPM template inifile present check
+  ansible.builtin.stat:
+    path: "{{ sap_swpm_inifile }}"
+  register: swpm_ini
+  when: sap_perform_swpm | default(false) | bool
+
+- name: Run SWPM (stub — customize for your SAP release)
+  ansible.builtin.command:
+    cmd: "{{ sap_swpm_media_path }}/sapinst -nogui -nofork SAPINST_EXECUTE_PRODUCT_ID=NW_StorageBasedCopy -sapinstKEy={{ sap_swpm_inifile }}"
+  when:
+    - sap_perform_swpm | default(false) | bool
+    - swpm_ini.stat.exists | default(false)
+  changed_when: true

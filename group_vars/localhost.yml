@@ -1,0 +1,4 @@
+---
+# Controller-only — do not apply .venv Python to remote EC2 hosts
+ansible_connection: local
+ansible_python_interpreter: "{{ sap_mod_local_python | default('auto_silent') }}"

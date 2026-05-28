@@ -1,0 +1,9 @@
+region            = "us-east-1"
+source_ami        = "ami-xxxxxxxxxxxxxxxxx"
+instance_type     = "m5.xlarge"
+ssh_username      = "ec2-user"
+ami_name_prefix   = "sap-mod-demo-sap-db2"
+subnet_id         = "" # optional: public subnet from Terraform output
+environment       = "demo"
+sap_sid           = "DEV"
+db2_instance_name = "db2inst1"

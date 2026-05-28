@@ -1,0 +1,58 @@
+---
+# IBM Db2 preparation layer (not full Db2 install — use IBM media in production)
+- name: Create Db2 instance user and groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - dba
+    - db2iadm1
+    - db2grp1
+
+- name: Create Db2 instance user
+  ansible.builtin.user:
+    name: "{{ db2_instance_name }}"
+    groups: dba,db2iadm1,db2grp1
+    shell: /bin/bash
+    home: "/home/{{ db2_instance_name }}"
+    create_home: true
+
+- name: Db2 filesystem layout
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ db2_instance_name }}"
+    group: db2grp1
+    mode: "0750"
+  loop:
+    - "/db2/{{ db2_instance_name }}"
+    - "/db2/{{ db2_instance_name }}/NODE0000"
+    - "/db2/{{ db2_instance_name }}/LOGDIR"
+    - "/db2/{{ db2_instance_name }}/ARCHIVE"
+
+- name: Install Db2 prerequisites (RHEL)
+  ansible.builtin.package:
+    name:
+      - libaio
+      - numactl
+      - ksh
+      - pam.i686
+    state: present
+  ignore_errors: true
+
+- name: Placeholder Db2 response file for future install
+  ansible.builtin.template:
+    src: db2rsp.j2
+    dest: "/db2/{{ db2_instance_name }}/db2server.rsp"
+    owner: "{{ db2_instance_name }}"
+    group: db2grp1
+    mode: "0640"
+
+- name: Mark Db2 prep complete
+  ansible.builtin.copy:
+    dest: /etc/db2-prep-ready
+    content: |
+      db2_instance={{ db2_instance_name }}
+      db2_port={{ db2_port }}
+      sap_sid={{ sap_sid }}
+    mode: "0644"

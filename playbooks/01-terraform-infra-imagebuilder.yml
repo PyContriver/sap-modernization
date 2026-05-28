@@ -1,0 +1,13 @@
+---
+# Phase 1 for golden_image_method=image_builder: VPC + EC2 Image Builder pipeline (no builder EC2)
+- name: Terraform infra for EC2 Image Builder path
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  vars:
+    golden_image_method: image_builder
+  roles:
+    - terraform_infra

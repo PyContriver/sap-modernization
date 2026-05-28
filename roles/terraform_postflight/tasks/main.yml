@@ -1,0 +1,60 @@
+---
+# Day 0 — verify infrastructure health AFTER hashicorp.terraform apply (PPT post-flight)
+- name: Post-flight — builder instance running
+  when:
+    - tf_builder_instance_id | default('') | length > 0
+    - golden_image_method | default('ansible') == 'ansible'
+  amazon.aws.ec2_instance_info:
+    region: "{{ aws_region }}"
+    instance_ids:
+      - "{{ tf_builder_instance_id }}"
+  register: builder_info
+  failed_when: builder_info.instances | default([]) | length == 0 or builder_info.instances[0].state.name != 'running'
+
+- name: Post-flight — builder SSH reachable
+  when:
+    - tf_builder_public_ip | default('') | length > 0
+    - golden_image_method | default('ansible') == 'ansible'
+    - postflight_verify_builder_ssh | default(true) | bool
+  block:
+    - name: Wait for builder SSH port
+      ansible.builtin.wait_for:
+        host: "{{ tf_builder_public_ip }}"
+        port: 22
+        delay: 15
+        timeout: "{{ postflight_ssh_timeout | default(300) }}"
+  rescue:
+    - name: Explain builder SSH failure
+      ansible.builtin.fail:
+        msg: >-
+          Cannot reach builder {{ tf_builder_public_ip }}:22. Security group allows SSH only
+          from allowed_ssh_cidr={{ allowed_ssh_cidr }}. Set ALLOWED_SSH_CIDR in .env to your
+          public IP/32 (or source scripts/load-env.sh to auto-detect), then re-run Day 0 so
+          Terraform updates the builder security group.
+
+- name: Post-flight — Image Builder pipeline exists
+  when:
+    - tf_image_pipeline_arn | default('') | length > 0
+    - golden_image_method | default('ansible') == 'image_builder'
+  ansible.builtin.assert:
+    that:
+      - tf_image_pipeline_arn is search('imagebuilder')
+    fail_msg: "Image Builder pipeline ARN missing after Terraform apply"
+
+- name: Post-flight — SAP and Db2 instances running
+  when: tf_sap_instance_id | default('') | length > 0
+  amazon.aws.ec2_instance_info:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ [tf_sap_instance_id, tf_db2_instance_id] | select('defined') | select('ne', '') | list }}"
+  register: workload_info
+  failed_when: >-
+    (workload_info.instances | default([]) | length) < 1
+    or (workload_info.instances | map(attribute='state.name') | select('ne', 'running') | list | length > 0)
+
+- name: Post-flight summary
+  ansible.builtin.debug:
+    msg:
+      vpc: "{{ tf_vpc_id | default('n/a') }}"
+      builder: "{{ tf_builder_instance_id | default('n/a') }}"
+      sap: "{{ tf_sap_instance_id | default('n/a') }}"
+      db2: "{{ tf_db2_instance_id | default('n/a') }}"

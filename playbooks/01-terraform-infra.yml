@@ -1,0 +1,12 @@
+---
+- name: Terraform infra only (builder + network)
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  vars:
+    golden_image_method: ansible
+  roles:
+    - terraform_infra

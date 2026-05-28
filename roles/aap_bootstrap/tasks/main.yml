@@ -1,0 +1,124 @@
+---
+- name: Require Controller API connection settings
+  ansible.builtin.assert:
+    that:
+      - lookup('env', 'CONTROLLER_HOST') | length > 0
+      - >-
+        (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | length > 0)
+        or (
+          (lookup('env', 'CONTROLLER_USERNAME') | default('') | length > 0)
+          and (lookup('env', 'CONTROLLER_PASSWORD') | default('') | length > 0)
+        )
+    fail_msg: >-
+      Set CONTROLLER_HOST and CONTROLLER_OAUTH_TOKEN (or USERNAME/PASSWORD) in .env.aap.
+      See .env.aap.example.
+
+- name: Require SAP secrets for credential upload
+  ansible.builtin.assert:
+    that:
+      - lookup('env', 'AWS_ACCESS_KEY_ID') | length > 0
+      - lookup('env', 'AWS_SECRET_ACCESS_KEY') | length > 0
+      - lookup('env', 'TF_TOKEN') | length > 0
+      - builder_ssh_private_key_file | default('') | length > 0
+      - builder_ssh_private_key_file is file
+    fail_msg: >-
+      Source scripts/load-env-aap.sh after filling .env (AWS_*, TF_TOKEN, SSH_PRIVATE_KEY_FILE).
+
+- name: Create HCP Terraform custom credential type
+  ansible.controller.credential_type:
+    name: "{{ aap_credential_hcp_type_name }}"
+    description: Injects TF_TOKEN for hashicorp.terraform collection
+    kind: cloud
+    inputs:
+      fields:
+        - id: tf_token
+          label: HCP Terraform API Token
+          type: string
+          secret: true
+    injectors:
+      env:
+        TF_TOKEN: "{% raw %}{{ tf_token }}{% endraw %}"
+    state: present
+
+- name: Upload AWS credential to AAP
+  ansible.controller.credential:
+    name: "{{ aap_credential_aws_name }}"
+    description: SAP modernization demo — EC2/AMI modules on controller
+    organization: "{{ aap_organization }}"
+    credential_type: Amazon Web Services
+    inputs:
+      access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+      secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+    state: present
+  no_log: true
+
+- name: Upload HCP Terraform API credential to AAP
+  ansible.controller.credential:
+    name: "{{ aap_credential_hcp_name }}"
+    description: TF_TOKEN for hashicorp.terraform → HCP runs
+    organization: "{{ aap_organization }}"
+    credential_type: "{{ aap_credential_hcp_type_name }}"
+    inputs:
+      tf_token: "{{ lookup('env', 'TF_TOKEN') }}"
+    state: present
+  no_log: true
+
+- name: Upload builder SSH credential to AAP
+  ansible.controller.credential:
+    name: "{{ aap_credential_ssh_name }}"
+    description: "SSH to golden-image builder (key pair {{ ssh_key_name }})"
+    organization: "{{ aap_organization }}"
+    credential_type: Machine
+    inputs:
+      username: "{{ builder_ssh_user | default('ec2-user') }}"
+      ssh_key_data: "{{ lookup('file', builder_ssh_private_key_file) }}"
+    state: present
+  no_log: true
+
+- name: Build job template extra_vars payload
+  ansible.builtin.set_fact:
+    sap_mod_aap_extra_vars: "{{ sap_mod_aap_extra_vars | default({}) | combine({
+      'terraform_driver': terraform_driver | default('hcp'),
+      'hcp_terraform_organization': hcp_terraform_organization | default(''),
+      'hcp_terraform_workspace': hcp_terraform_workspace | default(''),
+      'hcp_terraform_workspace_id': hcp_terraform_workspace_id | default(''),
+      'aws_region': aws_region | default(lookup('env', 'AWS_DEFAULT_REGION')),
+      'ssh_key_name': ssh_key_name | default(''),
+      'allowed_ssh_cidr': allowed_ssh_cidr | default(''),
+      'golden_image_method': golden_image_method | default('ansible'),
+      'base_ami_id': base_ami_id | default(''),
+      'enable_terraform_rollback': enable_terraform_rollback | default(true),
+    }) }}"
+
+- name: Sync extra_vars onto existing job templates
+  when: aap_sync_job_template_extra_vars | default(true) | bool
+  ansible.controller.job_template:
+    name: "{{ item }}"
+    organization: "{{ aap_organization }}"
+    extra_vars: "{{ sap_mod_aap_extra_vars }}"
+    state: present
+  loop: "{{ aap_job_template_names }}"
+  register: _aap_jt_sync
+  failed_when: false
+
+- name: Report job templates that were not found
+  when:
+    - aap_sync_job_template_extra_vars | default(true) | bool
+    - item.failed | default(false)
+  ansible.builtin.debug:
+    msg: >-
+      Job template '{{ item.item }}' was not updated (create it in AAP first, or disable
+      aap_sync_job_template_extra_vars). Error: {{ item.msg | default('unknown') }}
+  loop: "{{ _aap_jt_sync.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Bootstrap summary
+  ansible.builtin.debug:
+    msg:
+      organization: "{{ aap_organization }}"
+      credentials:
+        aws: "{{ aap_credential_aws_name }}"
+        hcp: "{{ aap_credential_hcp_name }}"
+        ssh: "{{ aap_credential_ssh_name }}"
+      extra_vars_keys: "{{ sap_mod_aap_extra_vars.keys() | list }}"

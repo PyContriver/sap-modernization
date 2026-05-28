@@ -1,0 +1,30 @@
+---
+# Copy and customize for your AWS account
+# Empty = preflight picks latest RHEL 9 HVM AMI in aws_region (Red Hat on AWS Marketplace)
+base_ami_id: ""
+base_ami_auto_resolve: true
+# Red Hat publisher account; subscribe to RHEL in AWS Marketplace for your account first
+base_ami_owner: "309956199498"
+base_ami_name_filter: "RHEL-9.*_HVM*x86_64*"
+ssh_key_name: demo_test
+allowed_ssh_cidr: "203.0.113.0/32"
+
+tf_state_bucket: sap-modernization-tfstate-demo
+tf_state_key: demo/sap-modernization.tfstate
+tf_lock_table: sap-modernization-tflock-demo
+
+terraform_variables:
+  aws_region: "{{ aws_region }}"
+  environment: "{{ environment }}"
+  project_name: "{{ project_name }}"
+  base_ami_id: "{{ base_ami_id }}"
+  ssh_key_name: "{{ ssh_key_name }}"
+  allowed_ssh_cidr: "{{ allowed_ssh_cidr }}"
+  deploy_builder: "{{ golden_image_method | default('ansible') == 'ansible' }}"
+  deploy_image_builder: "{{ golden_image_method | default('ansible') == 'image_builder' }}"
+  # packer: launches its own build instance — only need VPC from Terraform
+  deploy_sap_stack: false
+  image_builder_version: "{{ image_builder_version }}"
+  sap_sid: "{{ sap_sid }}"
+  db2_instance_name: "{{ db2_instance_name }}"
+  db2_port: "{{ db2_port }}"

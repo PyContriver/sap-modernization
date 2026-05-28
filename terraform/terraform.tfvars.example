@@ -1,0 +1,21 @@
+aws_region   = "us-east-1"
+environment  = "demo"
+project_name = "sap-mod"
+
+# RHEL 8.x SAP-ready AMI in your account (replace)
+base_ami_id = "ami-xxxxxxxxxxxxxxxxx"
+
+ssh_key_name     = "your-ec2-keypair"
+allowed_ssh_cidr = "203.0.113.0/32"
+
+deploy_builder         = true
+deploy_image_builder   = false
+image_builder_version  = "1.0.0"
+deploy_sap_stack       = false
+
+instance_type_builder = "m5.xlarge"
+instance_type_sap     = "m5.2xlarge"
+instance_type_db2     = "m5.2xlarge"
+
+sap_sid           = "DEV"
+db2_instance_name = "db2inst1"

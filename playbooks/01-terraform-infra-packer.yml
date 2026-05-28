@@ -1,0 +1,26 @@
+---
+# Phase 1 for golden_image_method=packer: VPC only (Packer creates its own build instance)
+- name: Terraform network for Packer golden image path
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  vars:
+    golden_image_method: packer
+  pre_tasks:
+    - name: Merge Terraform vars for network-only apply
+      ansible.builtin.set_fact:
+        terraform_variables: "{{ terraform_variables | combine({
+          'deploy_builder': false,
+          'deploy_image_builder': false,
+          'deploy_sap_stack': false
+        }, recursive=True) }}"
+  roles:
+    - terraform_infra
+
+  post_tasks:
+    - name: Set Packer subnet from Terraform output fact
+      ansible.builtin.set_fact:
+        packer_subnet_id: "{{ tf_public_subnet_id | default('') }}"

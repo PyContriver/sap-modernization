@@ -1,0 +1,9 @@
+---
+# Invoked by Packer ansible provisioner — reuses repo roles (no duplicate logic)
+- name: SAP Db2 golden image provisioning
+  hosts: default
+  gather_facts: true
+  become: true
+  roles:
+    - sap_os_prep
+    - db2_prep

@@ -1,0 +1,11 @@
+---
+- name: Golden image build only
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  # Override: -e golden_image_method=image_builder
+  roles:
+    - golden_image

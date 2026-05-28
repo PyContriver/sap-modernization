@@ -1,0 +1,21 @@
+---
+# AAP / Red Hat Automation Hub (includes certified hashicorp.terraform for HCP)
+# Prerequisites:
+#   1. Ansible subscription + Automation Hub API token
+#   2. ansible.cfg configured with automation_hub server (see ansible.cfg.automation-hub.example)
+#
+# Install:
+#   ansible-galaxy collection install -r requirements-aap.yml
+#
+# Default driver: terraform_driver: hcp
+collections:
+  - name: hashicorp.terraform
+    source: https://console.redhat.com/api/automation-hub/content/published/
+  - name: cloud.terraform
+    version: ">=2.0.0"
+  - name: amazon.aws
+    version: ">=7.0.0"
+  - name: ansible.posix
+    version: ">=1.5.0"
+
+roles: []

@@ -1,0 +1,55 @@
+---
+# Use latest Red Hat RHEL HVM AMI when BASE_AMI_ID is unset or still the .env.example placeholder
+- name: Check if base AMI should be auto-resolved
+  ansible.builtin.set_fact:
+    _base_ami_needs_resolve: >-
+      {{
+        (base_ami_auto_resolve | default(true) | bool)
+        and (
+          (base_ami_id | default('') | trim | length == 0)
+          or base_ami_id == 'ami-xxxxxxxxxxxxxxxxx'
+          or (base_ami_id is search('(?i)x{6,}'))
+        )
+      }}
+
+- name: Look up latest RHEL base AMI
+  when: _base_ami_needs_resolve | bool
+  amazon.aws.ec2_ami_info:
+    region: "{{ aws_region }}"
+    owners:
+      - "{{ base_ami_owner | default('309956199498') }}"
+    filters:
+      name: "{{ base_ami_name_filter | default('RHEL-9.*_HVM*x86_64*') }}"
+      architecture: x86_64
+      virtualization-type: hvm
+      root-device-type: ebs
+      state: available
+  register: _base_ami_lookup
+
+- name: Set base_ami_id from latest RHEL AMI
+  when: _base_ami_needs_resolve | bool
+  ansible.builtin.set_fact:
+    base_ami_id: >-
+      {{
+        (_base_ami_lookup.images | default([]) | sort(attribute='creation_date') | last).image_id
+      }}
+
+- name: Assert a RHEL base AMI was found
+  when: _base_ami_needs_resolve | bool
+  ansible.builtin.assert:
+    that:
+      - base_ami_id is match('^ami-')
+      - _base_ami_lookup.images | default([]) | length > 0
+    fail_msg: >-
+      No RHEL AMI found in {{ aws_region }} (owner {{ base_ami_owner | default('309956199498') }},
+      filter {{ base_ami_name_filter | default('RHEL-9.*_HVM*x86_64*') }}).
+      Subscribe to Red Hat Enterprise Linux on AWS Marketplace for this account, or set
+      BASE_AMI_ID in .env to a RHEL AMI id you already use.
+
+- name: Report auto-resolved base AMI
+  when: _base_ami_needs_resolve | bool
+  ansible.builtin.debug:
+    msg: >-
+      Using RHEL base AMI {{ base_ami_id }} ({{
+        (_base_ami_lookup.images | sort(attribute='creation_date') | last).name | default('unknown')
+      }}) in {{ aws_region }} — golden image build will customize this.

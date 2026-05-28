@@ -1,0 +1,51 @@
+---
+# OS tuning for SAP on RHEL-compatible images (demo-safe subset)
+- name: Install base packages for SAP and Ansible
+  ansible.builtin.package:
+    name:
+      - python3
+      - python3-pip
+      - unzip
+      - tar
+      - glibc-langpack-en
+    state: present
+
+- name: Create SAP mount points
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /sapmnt
+    - /usr/sap
+    - /db2
+
+- name: Apply SAP-related kernel sysctl (demo)
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    state: present
+    reload: true
+  loop:
+    - { key: "kernel.shmmax", value: "18446744073709551615" }
+    - { key: "kernel.shmall", value: "18446744073709551615" }
+    - { key: "vm.max_map_count", value: "2147483647" }
+  ignore_errors: true
+
+- name: Set process limits for sapadm and db2inst
+  ansible.builtin.blockinfile:
+    path: /etc/security/limits.d/99-sap-modernization.conf
+    create: true
+    block: |
+      sapadm soft nofile 65536
+      sapadm hard nofile 65536
+      {{ db2_instance_name }} soft nofile 65536
+      {{ db2_instance_name }} hard nofile 65536
+    mode: "0644"
+
+- name: Mark host as SAP-OS-ready
+  ansible.builtin.copy:
+    dest: /etc/sap-os-ready
+    content: "sap_os_prep_complete=true\n"
+    mode: "0644"

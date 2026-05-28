@@ -1,0 +1,10 @@
+## IBM Db2 response file — template for future silent install
+## Replace with licensed Db2 media and official rsp parameters in production.
+INSTALL_TYPE                    = TYPICAL
+INSTANCE                        = {{ db2_instance_name }}
+DAS_USERNAME                    = {{ db2_instance_name }}
+DAS_GROUP_NAME                  = db2grp1
+*COMP                            = {{ db2_instance_name }}
+*INSTPROF_DIR                   = /db2/{{ db2_instance_name }}
+*SVCENAME                       = db2c_{{ db2_instance_name }}
+*PORT_NUMBER                    = {{ db2_port }}

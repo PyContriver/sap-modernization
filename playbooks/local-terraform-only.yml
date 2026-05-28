@@ -1,0 +1,13 @@
+---
+# Optional fallback: Terraform CLI + S3 state (cloud.terraform collection)
+- name: SAP infra via cloud.terraform CLI
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  vars:
+    terraform_driver: local
+  roles:
+    - terraform_infra

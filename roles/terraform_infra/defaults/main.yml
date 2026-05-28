@@ -1,0 +1,8 @@
+---
+terraform_project_path: "{{ playbook_dir }}/../terraform"
+terraform_state: present
+terraform_force_init: true
+terraform_plan_file: ""
+terraform_complex_vars: {}
+hcp_terraform_run_variables: []
+terraform_targets: []

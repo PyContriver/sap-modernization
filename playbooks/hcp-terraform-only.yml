@@ -1,0 +1,13 @@
+---
+# Explicit HCP/TFE run (same as default terraform_driver: hcp in group_vars/all.yml)
+- name: SAP infra via hashicorp.terraform API
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+  vars:
+    terraform_driver: hcp
+  roles:
+    - terraform_infra

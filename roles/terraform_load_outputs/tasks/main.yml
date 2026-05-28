@@ -1,0 +1,95 @@
+---
+# Restore tf_* facts for Day 0.5+ when not running in the same playbook as Day 0 apply
+- name: Skip load when builder outputs already in scope
+  when: tf_builder_instance_id | default('') | length > 0
+  ansible.builtin.debug:
+    msg: "Terraform outputs already loaded (tf_builder_instance_id set)"
+
+- name: Load cached Terraform outputs from Day 0
+  when: tf_builder_instance_id | default('') | length == 0
+  block:
+    - name: Stat outputs cache file
+      when: terraform_outputs_cache_path | default('') | length > 0
+      ansible.builtin.stat:
+        path: "{{ terraform_outputs_cache_path }}"
+      register: _outputs_cache_stat
+
+    - name: Load outputs cache file
+      when: _outputs_cache_stat.stat.exists | default(false)
+      ansible.builtin.include_vars:
+        file: "{{ terraform_outputs_cache_path }}"
+      no_log: true
+
+    - name: Stat generated inventory file
+      when:
+        - tf_builder_instance_id | default('') | length == 0
+        - inventory_export_path | default('') | length > 0
+      ansible.builtin.stat:
+        path: "{{ inventory_export_path }}"
+      register: _inventory_export_stat
+
+    - name: Derive builder facts from generated Ansible inventory
+      when:
+        - tf_builder_instance_id | default('') | length == 0
+        - _inventory_export_stat.stat.exists | default(false)
+      block:
+        - name: Read generated inventory
+          ansible.builtin.slurp:
+            src: "{{ inventory_export_path }}"
+          register: _sap_mod_inv_slurp
+
+        - name: Parse builder host from inventory
+          ansible.builtin.set_fact:
+            _sap_mod_inv: "{{ (_sap_mod_inv_slurp.content | b64decode) | from_yaml }}"
+            _sap_mod_builder_hosts: >-
+              {{
+                ((_sap_mod_inv_slurp.content | b64decode) | from_yaml).all.children.sap_mod.children.sap_builders.hosts
+                | default({})
+              }}
+
+        - name: Set builder facts from inventory host map
+          when: _sap_mod_builder_hosts | length > 0
+          ansible.builtin.set_fact:
+            tf_builder_instance_id: "{{ (_sap_mod_builder_hosts.keys() | list | first) }}"
+            tf_builder_public_ip: "{{ (_sap_mod_builder_hosts.values() | list | first).ansible_host | default('') }}"
+
+    - name: Fetch Terraform outputs from HCP workspace API
+      when:
+        - tf_builder_instance_id | default('') | length == 0
+        - terraform_driver | default('hcp') == 'hcp'
+      block:
+        - name: Prepare HCP API access
+          ansible.builtin.include_role:
+            name: terraform_infra
+            tasks_from: hcp_prepare
+
+        - name: Resolve HCP workspace id for output lookup
+          ansible.builtin.include_role:
+            name: terraform_infra
+            tasks_from: hcp_resolve_workspace
+
+        - name: Read outputs from current workspace state
+          ansible.builtin.include_role:
+            name: terraform_infra
+            tasks_from: hcp_outputs
+
+    - name: Fetch Terraform outputs from local Terraform state
+      when:
+        - tf_builder_instance_id | default('') | length == 0
+        - terraform_driver | default('hcp') == 'local'
+      ansible.builtin.include_role:
+        name: terraform_infra
+        tasks_from: local_outputs.yml
+
+- name: Assert Day 0 builder outputs are available
+  ansible.builtin.assert:
+    that:
+      - tf_builder_instance_id | default('') | length > 0
+    fail_msg: >-
+      Missing tf_builder_instance_id. Run playbooks/day0-infrastructure.yml first, or ensure
+      {{ terraform_outputs_cache_path | default('inventory/generated/terraform_outputs.yml') }}
+      exists and HCP credentials (TF_TOKEN) are set for API refresh.
+
+- name: Show loaded builder target
+  ansible.builtin.debug:
+    msg: "Golden image builder {{ tf_builder_instance_id }} @ {{ tf_builder_public_ip | default('unknown') }}"

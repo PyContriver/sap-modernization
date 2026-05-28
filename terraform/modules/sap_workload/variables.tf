@@ -1,0 +1,11 @@
+variable "name_prefix" { type = string }
+variable "vpc_id" { type = string }
+variable "private_subnet_ids" { type = list(string) }
+variable "ami_id" { type = string }
+variable "sap_instance_type" { type = string }
+variable "db2_instance_type" { type = string }
+variable "ssh_key_name" { type = string }
+variable "sap_security_group" { type = string }
+variable "db2_security_group" { type = string }
+variable "sap_sid" { type = string }
+variable "db2_instance_name" { type = string }

@@ -1,0 +1,77 @@
+---
+# Day 0 — validate cloud/API readiness BEFORE hashicorp.terraform runs (PPT pre-flight)
+- name: Assert required variables for AWS + HCP
+  ansible.builtin.assert:
+    that:
+      - aws_region | length > 0
+      - ssh_key_name | length > 0
+      - sap_sid | length > 0
+      - db2_instance_name | length > 0
+      - sap_workload_db == 'ibm_db2'
+    fail_msg: "Configure ssh_key_name, sap_sid, db2_instance_name in group_vars/demo/aws.yml or .env"
+
+- name: Reject placeholder SSH key from .env.example
+  ansible.builtin.assert:
+    that:
+      - ssh_key_name != 'your-ec2-keypair'
+    fail_msg: >-
+      Set SSH_KEY_NAME in .env to an existing EC2 key pair in {{ aws_region }}
+      (EC2 → Key pairs; use the Name column, not the .pem filename).
+
+- name: Reject placeholder SSH CIDR from .env.example
+  ansible.builtin.assert:
+    that:
+      - allowed_ssh_cidr != '203.0.113.0/32'
+    fail_msg: >-
+      ALLOWED_SSH_CIDR is still the example 203.0.113.0/32. Set your public IP as
+      x.x.x.x/32 in .env, or source load-env.sh (auto-detects via checkip.amazonaws.com).
+
+- name: Resolve base AMI when not provided
+  ansible.builtin.include_tasks: resolve_base_ami.yml
+
+- name: Assert base AMI id is set
+  ansible.builtin.assert:
+    that:
+      - base_ami_id is match('^ami-')
+    fail_msg: "base_ami_id missing — leave empty for auto-resolve or set BASE_AMI_ID in .env"
+
+- name: Assert HCP Terraform configuration when driver is hcp
+  when: terraform_driver | default('hcp') == 'hcp'
+  ansible.builtin.assert:
+    that:
+      - (hcp_terraform_workspace_id | default('') | length > 0)
+        or (
+          (hcp_terraform_organization | default('') | length > 0)
+          and (hcp_terraform_workspace | default('') | length > 0)
+        )
+    fail_msg: "Set hcp_terraform_workspace_id or organization+workspace for hashicorp.terraform"
+
+- name: Verify AWS STS caller identity
+  amazon.aws.aws_caller_info:
+  register: aws_caller
+  failed_when: false
+
+- name: Report AWS account pre-flight
+  ansible.builtin.debug:
+    msg: "Pre-flight OK — AWS account {{ aws_caller.account | default('unknown') }} region {{ aws_region }} database {{ sap_workload_db }}"
+
+- name: Look up EC2 key pair in region
+  amazon.aws.ec2_key_info:
+    region: "{{ aws_region }}"
+    names:
+      - "{{ ssh_key_name }}"
+  register: ec2_key
+
+- name: Validate EC2 key pair exists
+  ansible.builtin.assert:
+    that:
+      - ec2_key.keypairs | default([]) | length > 0
+    fail_msg: >-
+      EC2 key pair '{{ ssh_key_name }}' not found in {{ aws_region }} (account
+      {{ aws_caller.account | default('unknown') }}). In .env set SSH_KEY_NAME to the
+      exact name from AWS Console → EC2 → Key pairs (same region as AWS_DEFAULT_REGION).
+
+- name: Optional — check free address space in VPC CIDR (demo warning only)
+  ansible.builtin.debug:
+    msg: "VPC CIDR {{ vpc_cidr | default('10.40.0.0/16') }} — confirm quotas for SAP+Db2 instance types in {{ aws_region }}"
+  when: preflight_warn_quotas | default(true) | bool

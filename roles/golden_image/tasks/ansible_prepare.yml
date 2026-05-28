@@ -1,0 +1,34 @@
+---
+# Controller-side: wait for builder SSH and add to inventory (play 1)
+- name: Validate builder instance id from Terraform
+  ansible.builtin.assert:
+    that:
+      - tf_builder_instance_id is defined
+      - tf_builder_instance_id | length > 0
+    fail_msg: "Run terraform_infra first (deploy_builder=true) to create the builder EC2."
+
+- name: Wait for builder SSH
+  ansible.builtin.wait_for:
+    host: "{{ tf_builder_public_ip }}"
+    port: 22
+    delay: 10
+    timeout: 600
+
+- name: Require builder SSH private key for Ansible provisioning
+  ansible.builtin.assert:
+    that:
+      - builder_ssh_private_key_file | default('') | length > 0
+      - builder_ssh_private_key_file is file
+    fail_msg: >-
+      Set SSH_PRIVATE_KEY_FILE in .env to the private key for '{{ ssh_key_name }}'.
+      SSH requires chmod 600 (e.g. chmod 600 ~/Downloads/demo_test.pem) — 0644 is rejected.
+
+- name: Add builder to in-memory inventory
+  ansible.builtin.add_host:
+    name: sap_golden_builder
+    ansible_host: "{{ tf_builder_public_ip }}"
+    ansible_user: "{{ builder_ssh_user }}"
+    ansible_ssh_private_key_file: "{{ builder_ssh_private_key_file }}"
+    ansible_python_interpreter: auto_silent
+    groups: sap_builders
+    builder_instance_id: "{{ tf_builder_instance_id }}"

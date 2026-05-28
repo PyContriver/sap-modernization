@@ -1,0 +1,24 @@
+---
+# golden_image_method:
+#   ansible        — OSS: Ansible + ec2_ami (default)
+#   image_builder  — OSS-friendly on AWS: EC2 Image Builder
+#   packer         — Packer HCL + ansible provisioner (BSL binary; see docs/opensource-golden-images.md)
+- name: Golden image prepare (Ansible AMI path)
+  ansible.builtin.include_tasks: ansible_prepare.yml
+  when:
+    - golden_image_method | default('ansible') == 'ansible'
+    - golden_image_stage | default('') == 'prepare'
+
+- name: Golden image finalize (Ansible AMI path)
+  ansible.builtin.include_tasks: ansible_finalize.yml
+  when:
+    - golden_image_method | default('ansible') == 'ansible'
+    - golden_image_stage | default('') == 'finalize'
+
+- name: Golden image build (EC2 Image Builder path)
+  ansible.builtin.include_tasks: image_builder.yml
+  when: golden_image_method | default('ansible') == 'image_builder'
+
+- name: Golden image build (Packer path)
+  ansible.builtin.include_tasks: packer.yml
+  when: golden_image_method | default('ansible') == 'packer'

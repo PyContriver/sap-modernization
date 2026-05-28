@@ -1,0 +1,6 @@
+---
+# Controller API bootstrap (install on laptop or a one-off admin EE)
+#   ansible-galaxy collection install -r requirements-aap-bootstrap.yml
+collections:
+  - name: ansible.controller
+    version: ">=4.6.0"
