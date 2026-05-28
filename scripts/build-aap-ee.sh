@@ -57,7 +57,7 @@ echo "Building image (no cache for collection layer)..."
 
 echo "Verify hashicorp.terraform in built image..."
 "${CONTAINER_CMD}" run --rm "${EE_IMAGE}" python3 -c \
-  "import json; v=json.load(open('/opt/sap-mod-ee/collections/ansible_collections/hashicorp/terraform/MANIFEST.json'))['collection_info']['version']; print(v); assert v.startswith('2.')"
+  "import json; v=json.load(open('/usr/share/ansible/collections/ansible_collections/hashicorp/terraform/MANIFEST.json'))['collection_info']['version']; print('hashicorp.terraform', v); assert v.startswith('2.'), f'expected 2.x, got {v}'"
 
 REGISTRY="${EE_IMAGE%%/*}"
 echo "Pushing to ${REGISTRY}..."
