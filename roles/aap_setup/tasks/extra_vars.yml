@@ -1,0 +1,21 @@
+---
+# Resolve on the laptop (same .env AWS keys) so AAP jobs get a concrete ami-* even when
+# controller-side DescribeImages cannot see Red Hat marketplace AMIs.
+- name: Resolve base AMI for job template extra_vars when unset
+  ansible.builtin.import_tasks: resolve_base_ami_extra_vars.yml
+
+- name: Build job template extra_vars payload
+  ansible.builtin.set_fact:
+    sap_mod_aap_extra_vars: "{{ sap_mod_aap_extra_vars | default({}) | combine({
+      'terraform_driver': terraform_driver | default('hcp'),
+      'hcp_terraform_organization': hcp_terraform_organization | default(''),
+      'hcp_terraform_workspace': hcp_terraform_workspace | default(''),
+      'hcp_terraform_workspace_id': hcp_terraform_workspace_id | default(''),
+      'aws_region': aws_region | default(lookup('env', 'AWS_DEFAULT_REGION')),
+      'ssh_key_name': ssh_key_name | default(''),
+      'allowed_ssh_cidr': allowed_ssh_cidr | default(''),
+      'golden_image_method': golden_image_method | default('ansible'),
+      'base_ami_id': base_ami_id | default(''),
+      'enable_terraform_rollback': enable_terraform_rollback | default(true),
+      'postflight_verify_builder_ssh': postflight_verify_builder_ssh | default(true),
+    }) }}"

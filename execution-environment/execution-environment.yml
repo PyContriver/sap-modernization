@@ -1,0 +1,14 @@
+---
+version: 3
+
+images:
+  base_image:
+    # Hub/registry on the AAP host (override with AAP_EE_BASE_IMAGE in build-aap-ee.sh)
+    name: 34.205.23.227/ee-supported-rhel9:latest
+
+options:
+  package_manager_path: /usr/bin/microdnf
+
+dependencies:
+  galaxy: requirements.yml
+  python: requirements.txt

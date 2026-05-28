@@ -1,0 +1,6 @@
+# Extend controller Hub EE with Python deps for HCP API (hashicorp.terraform already in base image)
+FROM 34.205.23.227/ee-supported-rhel9:latest
+USER root
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+RUN /usr/bin/python3 -m pip install --no-cache-dir boto3 'pytfe>=0.1.5' \
+    && /usr/bin/python3 -c "import pytfe; print('pytfe', pytfe.__version__)"

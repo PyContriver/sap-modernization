@@ -1,0 +1,59 @@
+---
+- name: Look up SCM project on controller
+  ansible.builtin.uri:
+    url: "{{ lookup('env', 'CONTROLLER_HOST') }}/api/controller/v2/projects/?name={{ aap_project_name | urlencode }}"
+    method: GET
+    headers: "{{ {'Authorization': 'Bearer ' + lookup('env', 'CONTROLLER_OAUTH_TOKEN')} if (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default('') | length > 0) else omit }}"
+    url_username: "{{ lookup('env', 'CONTROLLER_USERNAME') if (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default('') | length == 0) else omit }}"
+    url_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') if (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default('') | length == 0) else omit }}"
+    force_basic_auth: "{{ (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default('') | length == 0) | bool }}"
+    validate_certs: "{{ aap_verify_ssl }}"
+    return_content: true
+    status_code: 200
+  register: _aap_project_lookup
+  no_log: true
+
+- name: List playbooks synced for project
+  ansible.builtin.uri:
+    url: "{{ lookup('env', 'CONTROLLER_HOST') }}{{ _aap_project_lookup.json.results[0].related.playbooks }}"
+    method: GET
+    headers: "{{ {'Authorization': 'Bearer ' + lookup('env', 'CONTROLLER_OAUTH_TOKEN')} if (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default('') | length > 0) else omit }}"
+    url_username: "{{ lookup('env', 'CONTROLLER_USERNAME') if (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default('') | length == 0) else omit }}"
+    url_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') if (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default('') | length == 0) else omit }}"
+    force_basic_auth: "{{ (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default('') | length == 0) | bool }}"
+    validate_certs: "{{ aap_verify_ssl }}"
+    return_content: true
+    status_code: 200
+  register: _aap_project_playbooks
+  no_log: true
+
+- name: Require successful project SCM sync before job templates
+  ansible.builtin.assert:
+    that:
+      - _aap_project_lookup.json.count | int > 0
+      - _aap_project_playbooks.json | length > 0
+    fail_msg: >-
+      Project "{{ aap_project_name }}" has no playbooks on the controller (SCM sync
+      failed or not run). Sync the project in AAP after the Git branch includes a
+      public-Galaxy requirements.yml (see repo requirements.yml), then re-run:
+      ./scripts/setup-aap.sh --tags job_templates,workflow
+
+- name: Create or update job templates
+  ansible.controller.job_template:
+    name: "{{ item.name }}"
+    description: "SAP modernization — {{ item.playbook }}"
+    organization: "{{ aap_organization }}"
+    project: "{{ aap_project_name }}"
+    playbook: "{{ item.playbook }}"
+    inventory: "{{ aap_inventory_name }}"
+    execution_environment: "{{ aap_execution_environment_effective }}"
+    job_type: run
+    credentials: "{{ item.credentials }}"
+    extra_vars: "{{ sap_mod_aap_extra_vars }}"
+    ask_variables_on_launch: "{{ item.ask_variables_on_launch | default(false) }}"
+    survey_enabled: "{{ item.survey_enabled | default(false) }}"
+    survey_spec: "{{ item.survey_spec | default(omit) }}"
+    state: present
+  loop: "{{ aap_job_templates }}"
+  loop_control:
+    label: "{{ item.name }}"

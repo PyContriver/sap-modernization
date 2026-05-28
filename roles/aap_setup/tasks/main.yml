@@ -1,0 +1,68 @@
+---
+# import_tasks (not include_tasks) so --tags job_templates,workflow runs inner tasks
+- name: Validate Controller API and SAP secrets
+  ansible.builtin.import_tasks: validate.yml
+  tags:
+    - always
+
+- name: Resolve execution environment on controller
+  ansible.builtin.import_tasks: resolve_execution_environment.yml
+  tags:
+    - always
+    - project
+
+- name: Upload credentials to AAP
+  ansible.builtin.import_tasks: credentials.yml
+  tags:
+    - credentials
+    - aap_setup
+
+- name: Build shared extra_vars for job and workflow templates
+  ansible.builtin.import_tasks: extra_vars.yml
+  tags:
+    - extra_vars
+    - job_templates
+    - workflow
+    - aap_setup
+
+- name: Create project and sync SCM
+  ansible.builtin.import_tasks: project.yml
+  tags:
+    - project
+    - aap_setup
+
+- name: Create inventory and localhost host
+  ansible.builtin.import_tasks: inventory.yml
+  tags:
+    - inventory
+    - aap_setup
+
+- name: Create job templates
+  ansible.builtin.import_tasks: job_templates.yml
+  tags:
+    - job_templates
+    - aap_setup
+
+- name: Create workflow job template
+  ansible.builtin.import_tasks: workflow.yml
+  tags:
+    - workflow
+    - aap_setup
+
+- name: AAP setup complete
+  ansible.builtin.debug:
+    msg:
+      controller: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+      organization: "{{ aap_organization }}"
+      project: "{{ aap_project_name }}"
+      inventory: "{{ aap_inventory_name }}"
+      execution_environment: "{{ aap_execution_environment_effective }}"
+      workflow: "{{ aap_workflow_name }}"
+      job_templates: "{{ aap_job_templates | map(attribute='name') | list }}"
+      next_step: >-
+        Launch workflow '{{ aap_workflow_name }}' in AAP. For deploy node, supply
+        golden_ami_id from Day 0.5 job artifacts or survey.
+  tags:
+    - aap_setup
+    - job_templates
+    - workflow

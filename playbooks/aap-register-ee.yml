@@ -1,0 +1,24 @@
+---
+- name: Register execution environment on AAP
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/ansible.controller.controller:
+      validate_certs: "{{ aap_verify_ssl | default(false) }}"
+      controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+      controller_username: "{{ lookup('env', 'CONTROLLER_USERNAME') | default(omit, true) }}"
+      controller_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') | default(omit, true) }}"
+      controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default(omit, true) }}"
+  vars:
+    aap_verify_ssl: "{{ lookup('env', 'AAP_VERIFY_SSL') | default('false') | bool }}"
+
+  tasks:
+    - name: Create or update execution environment
+      ansible.controller.execution_environment:
+        name: "{{ aap_ee_name }}"
+        description: SAP modernization — hashicorp.terraform, amazon.aws, boto3, pytfe
+        organization: "{{ aap_organization | default('Default') }}"
+        image: "{{ aap_ee_image }}"
+        pull: missing
+        state: present

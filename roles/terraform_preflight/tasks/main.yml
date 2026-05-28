@@ -26,6 +26,10 @@
       ALLOWED_SSH_CIDR is still the example 203.0.113.0/32. Set your public IP as
       x.x.x.x/32 in .env, or source load-env.sh (auto-detects via checkip.amazonaws.com).
 
+- name: Verify AWS STS caller identity (before AMI lookup)
+  amazon.aws.aws_caller_info:
+  register: aws_caller
+
 - name: Resolve base AMI when not provided
   ansible.builtin.include_tasks: resolve_base_ami.yml
 
@@ -45,11 +49,6 @@
           and (hcp_terraform_workspace | default('') | length > 0)
         )
     fail_msg: "Set hcp_terraform_workspace_id or organization+workspace for hashicorp.terraform"
-
-- name: Verify AWS STS caller identity
-  amazon.aws.aws_caller_info:
-  register: aws_caller
-  failed_when: false
 
 - name: Report AWS account pre-flight
   ansible.builtin.debug:

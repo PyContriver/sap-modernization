@@ -1,0 +1,32 @@
+---
+- name: Create workflow job template
+  ansible.controller.workflow_job_template:
+    name: "{{ aap_workflow_name }}"
+    description: PPT pipeline Day 0 → 0.5 → deploy → Day 1
+    organization: "{{ aap_organization }}"
+    inventory: "{{ aap_inventory_name }}"
+    extra_vars: "{{ sap_mod_aap_extra_vars }}"
+    ask_variables_on_launch: false
+    state: present
+
+- name: Create workflow nodes (job templates)
+  ansible.controller.workflow_job_template_node:
+    identifier: "{{ item.identifier }}"
+    workflow_job_template: "{{ aap_workflow_name }}"
+    organization: "{{ aap_organization }}"
+    unified_job_template: "{{ item.name }}"
+    state: present
+  loop: "{{ aap_job_templates }}"
+  loop_control:
+    label: "{{ item.identifier }}"
+
+- name: Link workflow nodes on success
+  ansible.controller.workflow_job_template_node:
+    identifier: "{{ item.identifier }}"
+    workflow_job_template: "{{ aap_workflow_name }}"
+    organization: "{{ aap_organization }}"
+    success_nodes: "{{ item.success_nodes }}"
+    state: present
+  loop: "{{ aap_workflow_links }}"
+  loop_control:
+    label: "{{ item.identifier }}"

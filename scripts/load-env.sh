@@ -49,10 +49,12 @@ if [[ -z "${ALLOWED_SSH_CIDR:-}" || "${ALLOWED_SSH_CIDR}" == "203.0.113.0/32" ]]
   fi
   if [[ -n "${_detected_ip}" ]]; then
     ALLOWED_SSH_CIDR="${_detected_ip}/32"
-    echo "Resolved ALLOWED_SSH_CIDR=${ALLOWED_SSH_CIDR} (your public IP for builder SSH)" >&2
+    echo "Resolved ALLOWED_SSH_CIDR=${ALLOWED_SSH_CIDR} (your public IP — set ALLOWED_SSH_CIDR=0.0.0.0/0 in .env for AAP)" >&2
   else
     echo "Warning: set ALLOWED_SSH_CIDR in .env to your public IP/32 (builder SSH will fail with 203.0.113.0/32)" >&2
   fi
+elif [[ "${ALLOWED_SSH_CIDR}" == "0.0.0.0/0" ]]; then
+  echo "Using ALLOWED_SSH_CIDR=0.0.0.0/0 (open builder SSH for AAP/demo)" >&2
 fi
 
 # EC2 SSH private key for builder / golden-image plays (must match SSH_KEY_NAME)

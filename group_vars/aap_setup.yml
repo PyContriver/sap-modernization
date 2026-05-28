@@ -1,0 +1,81 @@
+---
+# Full AAP provisioning via playbooks/aap-setup.yml (collections/EE sync is manual)
+aap_organization: "{{ lookup('env', 'AAP_ORGANIZATION') | default('Default', true) }}"
+# Set AAP_VERIFY_SSL=false in .env.aap for IP/self-signed controllers
+aap_verify_ssl: "{{ lookup('env', 'AAP_VERIFY_SSL') | default('true', true) | bool }}"
+
+# SCM project (required for job templates)
+aap_project_name: "{{ lookup('env', 'AAP_PROJECT_NAME') | default('SAP Modernization', true) }}"
+aap_project_scm_url: "{{ lookup('env', 'AAP_PROJECT_SCM_URL') | default('', true) }}"
+aap_project_scm_branch: "{{ lookup('env', 'AAP_PROJECT_SCM_BRANCH') | default('main', true) }}"
+aap_project_scm_credential: "{{ lookup('env', 'AAP_PROJECT_SCM_CREDENTIAL') | default('', true) }}"
+aap_project_update_on_launch: true
+# Set true after requirements.yml (public Galaxy) is on the SCM branch AAP pulls
+aap_run_project_update: false
+aap_wait_for_project_sync: false
+
+# Inventory
+aap_inventory_name: "{{ lookup('env', 'AAP_INVENTORY_NAME') | default('SAP Mod Localhost', true) }}"
+aap_localhost_host_vars:
+  ansible_connection: local
+
+# Execution environment — create/sync collections in UI first, then set name here
+aap_execution_environment: "{{ lookup('env', 'AAP_EXECUTION_ENVIRONMENT') | default('sap-mod-ee', true) }}"
+# Overwritten by resolve_execution_environment.yml when that task runs
+aap_execution_environment_effective: "{{ aap_execution_environment }}"
+
+# Credentials (names)
+aap_credential_aws_name: "{{ lookup('env', 'AAP_CREDENTIAL_AWS_NAME') | default('SAP Mod - AWS', true) }}"
+aap_credential_ssh_name: "{{ lookup('env', 'AAP_CREDENTIAL_SSH_NAME') | default('SAP Mod - Builder SSH', true) }}"
+aap_credential_hcp_name: "{{ lookup('env', 'AAP_CREDENTIAL_HCP_NAME') | default('SAP Mod - HCP Terraform', true) }}"
+aap_credential_hcp_type_name: HCP Terraform API
+
+# Workflow
+aap_workflow_name: "{{ lookup('env', 'AAP_WORKFLOW_NAME') | default('SAP Mod - PPT Pipeline', true) }}"
+
+aap_job_templates:
+  - name: SAP Mod - Day 0 Infrastructure
+    identifier: day0
+    playbook: playbooks/day0-infrastructure.yml
+    credentials:
+      - "{{ aap_credential_aws_name }}"
+      - "{{ aap_credential_hcp_name }}"
+  - name: SAP Mod - Day 0.5 Golden Image
+    identifier: day05
+    playbook: playbooks/day05-golden-image.yml
+    credentials:
+      - "{{ aap_credential_aws_name }}"
+      - "{{ aap_credential_ssh_name }}"
+  - name: SAP Mod - Day 0 Deploy Workload
+    identifier: deploy
+    playbook: playbooks/day0-deploy-workload.yml
+    credentials:
+      - "{{ aap_credential_aws_name }}"
+      - "{{ aap_credential_hcp_name }}"
+    survey_enabled: true
+    survey_spec:
+      name: SAP Mod deploy survey
+      description: Golden AMI from Day 0.5 workflow
+      spec:
+        - variable: golden_ami_id
+          question_name: Golden AMI ID from Day 0.5
+          type: text
+          required: true
+          default: ""
+  - name: SAP Mod - Day 1 Install
+    identifier: day1
+    playbook: playbooks/day1-install.yml
+    credentials:
+      - "{{ aap_credential_aws_name }}"
+      - "{{ aap_credential_ssh_name }}"
+
+aap_workflow_links:
+  - identifier: day0
+    success_nodes:
+      - day05
+  - identifier: day05
+    success_nodes:
+      - deploy
+  - identifier: deploy
+    success_nodes:
+      - day1

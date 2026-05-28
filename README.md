@@ -106,4 +106,4 @@ docs/ppt-story-and-aap-workflow.md
 - **AWS:** EC2, AMI, Image Builder
 - **SSH:** builder and private hosts (bastion/SSM for Day 1)
 
-See [docs/aap-job-templates.md](docs/aap-job-templates.md), [docs/aap-bootstrap.md](docs/aap-bootstrap.md) (upload `.env` → AAP credentials), and [docs/hcp-terraform-setup.md](docs/hcp-terraform-setup.md).
+See [docs/aap-30min-setup.md](docs/aap-30min-setup.md) (step-by-step AAP setup), [docs/aap-job-templates.md](docs/aap-job-templates.md), [docs/aap-bootstrap.md](docs/aap-bootstrap.md) (`./scripts/setup-aap.sh` provisions AAP via API), and [docs/hcp-terraform-setup.md](docs/hcp-terraform-setup.md).

@@ -1,0 +1,34 @@
+---
+# Provision AAP objects for SAP modernization (except EE build / Hub collection sync).
+#
+# Prereqs on AAP (manual, ~10 min while this runs):
+#   - Sync hashicorp.terraform, amazon.aws, ansible.posix from Automation Hub
+#   - Build execution environment named in AAP_EXECUTION_ENVIRONMENT (default sap-mod-ee)
+#
+# On laptop:
+#   cp .env.aap.example .env.aap
+#   # CONTROLLER_HOST, CONTROLLER_OAUTH_TOKEN, AAP_PROJECT_SCM_URL
+#   source scripts/load-env-aap.sh
+#   ./scripts/setup-aap.sh
+#
+# Tags: credentials, project, inventory, job_templates, workflow, extra_vars
+- name: Provision SAP modernization on Ansible Automation Platform
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    group/ansible.controller.controller:
+      validate_certs: "{{ aap_verify_ssl }}"
+      controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+      controller_username: "{{ lookup('env', 'CONTROLLER_USERNAME') | default(omit, true) }}"
+      controller_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') | default(omit, true) }}"
+      controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default(omit, true) }}"
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/demo/aws.yml
+    - ../group_vars/aap_setup.yml
+
+  tasks:
+    - name: Complete AAP setup via Controller API
+      ansible.builtin.import_role:
+        name: aap_setup

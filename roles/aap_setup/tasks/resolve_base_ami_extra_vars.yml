@@ -1,0 +1,60 @@
+---
+# Resolve base_ami_id on the laptop (.env AWS CLI) for job template extra_vars.
+- name: Check if base AMI should be auto-resolved for AAP extra_vars
+  ansible.builtin.set_fact:
+    _base_ami_needs_resolve: >-
+      {{
+        (base_ami_auto_resolve | default(true) | bool)
+        and (
+          (base_ami_id | default('') | trim | length == 0)
+          or base_ami_id == 'ami-xxxxxxxxxxxxxxxxx'
+          or (base_ami_id is search('(?i)x{6,}'))
+        )
+      }}
+
+- name: Look up latest RHEL base AMI via AWS CLI
+  when: _base_ami_needs_resolve | bool
+  ansible.builtin.command:
+    argv:
+      - aws
+      - ec2
+      - describe-images
+      - --region
+      - "{{ aws_region }}"
+      - --owners
+      - "{{ base_ami_owner | default('309956199498') }}"
+      - --filters
+      - "Name=name,Values={{ base_ami_name_filter | default('RHEL-9.*_HVM*x86_64*') }}"
+      - "Name=architecture,Values=x86_64"
+      - "Name=virtualization-type,Values=hvm"
+      - "Name=root-device-type,Values=ebs"
+      - "Name=state,Values=available"
+      - --output
+      - json
+  register: _base_ami_cli
+  changed_when: false
+
+- name: Set base_ami_id from AWS CLI lookup
+  when: _base_ami_needs_resolve | bool
+  ansible.builtin.set_fact:
+    base_ami_id: >-
+      {{
+        ((_base_ami_cli.stdout | from_json).Images
+        | sort(attribute='CreationDate')
+        | last).ImageId
+      }}
+
+- name: Assert a RHEL base AMI was resolved for AAP extra_vars
+  when: _base_ami_needs_resolve | bool
+  ansible.builtin.assert:
+    that:
+      - base_ami_id is match('^ami-')
+      - (_base_ami_cli.stdout | from_json).Images | length > 0
+    fail_msg: >-
+      No RHEL AMI in {{ aws_region }} (owner {{ base_ami_owner | default('309956199498') }}).
+      Subscribe to RHEL on AWS Marketplace or set BASE_AMI_ID in .env.
+
+- name: Report base AMI pushed to AAP job extra_vars
+  when: _base_ami_needs_resolve | bool
+  ansible.builtin.debug:
+    msg: "AAP job templates will use base_ami_id={{ base_ami_id }} in {{ aws_region }}"

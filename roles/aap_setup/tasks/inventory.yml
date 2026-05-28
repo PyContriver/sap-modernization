@@ -1,0 +1,15 @@
+---
+- name: Create localhost inventory
+  ansible.controller.inventory:
+    name: "{{ aap_inventory_name }}"
+    description: Controller-side playbooks (Day 0 / 0.5 / deploy); builder added at runtime
+    organization: "{{ aap_organization }}"
+    state: present
+
+- name: Add localhost host to inventory
+  ansible.controller.host:
+    name: localhost
+    inventory: "{{ aap_inventory_name }}"
+    variables: "{{ aap_localhost_host_vars }}"
+    enabled: true
+    state: present

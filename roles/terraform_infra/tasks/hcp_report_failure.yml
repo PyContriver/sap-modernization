@@ -1,0 +1,30 @@
+---
+# Sanitized failure for HCP hashicorp.terraform tasks (no secrets in job output).
+- name: Fail with HCP error detail
+  ansible.builtin.fail:
+    msg: >-
+      {{ hcp_failure_context | default('HCP Terraform step') }} failed{{
+        ' for ' + hcp_terraform_organization + '/' + hcp_terraform_workspace
+        if (
+          (hcp_terraform_organization | default('') | length > 0)
+          and (hcp_terraform_workspace | default('') | length > 0)
+        ) else ''
+      }}.
+      Message: {{ _hcp_failure_msg }}.
+      {% if _hcp_failure_status | length > 0 %}Status: {{ _hcp_failure_status }}. {% endif %}
+      {% if _hcp_failure_id | length > 0 %}Id: {{ _hcp_failure_id }}. {% endif %}
+      {{ ' Rebuild EE: ./scripts/build-aap-ee.sh' if ('pytfe' in _hcp_failure_msg) or ('pytfe' in (_hcp_failure_stderr | lower)) else '' }}
+  vars:
+    _hcp_failure_raw_msg: "{{ hcp_failure_result.msg | default(hcp_failure_result.module_stderr | default('')) }}"
+    _hcp_failure_stderr: "{{ hcp_failure_result.stderr | default('') }}"
+    _hcp_failure_msg: >-
+      {{
+        _hcp_failure_raw_msg
+        | regex_replace('(?i)Bearer\\s+\\S+', 'Bearer ***')
+        | regex_replace('(?i)(token|password|secret)(=|:)\\s*\\S+', '\\1=***')
+        | regex_replace('(?i)tfe_token\\s*[=:]\\s*\\S+', 'tfe_token=***')
+        | trim
+        | default('no error message returned — check EE has pytfe (./scripts/build-aap-ee.sh)', true)
+      }}
+    _hcp_failure_status: "{{ hcp_failure_result.status | default('') | string }}"
+    _hcp_failure_id: "{{ hcp_failure_result.id | default('') | string }}"

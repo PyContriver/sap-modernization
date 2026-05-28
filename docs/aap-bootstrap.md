@@ -1,8 +1,15 @@
-# Bootstrap AAP credentials and variables from `.env`
+# Bootstrap / provision AAP via API
 
-Use this when you have **admin API access** to Ansible Automation Platform and want to upload the same secrets you use locally (`AWS_*`, `TF_TOKEN`, SSH private key) into Controller **credentials**, plus sync **job template extra vars**.
+Use **`playbooks/aap-setup.yml`** to create (via Controller API):
 
-This does **not** replace manual setup of **Project**, **Execution Environment**, **Inventory**, or **Job Templates** — create those once in the UI (or extend the bootstrap playbook later). The bootstrap playbook **updates** job templates **if they already exist** with the names in `group_vars/aap_bootstrap.yml`.
+- Credentials (AWS, HCP `TF_TOKEN`, builder SSH)
+- SCM **Project** + sync
+- **Inventory** + `localhost` host
+- Four **job templates** + **workflow**
+
+You still build the **execution environment** and sync **Hub collections** in the UI first.
+
+Legacy name `aap-bootstrap.yml` imports the same playbook.
 
 ## Prerequisites
 
@@ -17,13 +24,15 @@ This does **not** replace manual setup of **Project**, **Execution Environment**
 
 ```bash
 cp .env.aap.example .env.aap
-# Edit .env.aap — CONTROLLER_HOST, CONTROLLER_OAUTH_TOKEN
+# CONTROLLER_HOST, CONTROLLER_OAUTH_TOKEN, AAP_PROJECT_SCM_URL, AAP_EXECUTION_ENVIRONMENT
 
 ansible-galaxy collection install -r requirements-aap-bootstrap.yml -p ./collections
 
 source scripts/load-env-aap.sh
-./scripts/bootstrap-aap.sh
+./scripts/setup-aap.sh
 ```
+
+Credentials only: `./scripts/setup-aap.sh --tags credentials`
 
 ## What gets created in AAP
 

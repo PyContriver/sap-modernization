@@ -41,10 +41,14 @@
       - base_ami_id is match('^ami-')
       - _base_ami_lookup.images | default([]) | length > 0
     fail_msg: >-
-      No RHEL AMI found in {{ aws_region }} (owner {{ base_ami_owner | default('309956199498') }},
-      filter {{ base_ami_name_filter | default('RHEL-9.*_HVM*x86_64*') }}).
-      Subscribe to Red Hat Enterprise Linux on AWS Marketplace for this account, or set
-      BASE_AMI_ID in .env to a RHEL AMI id you already use.
+      No RHEL AMI found in {{ aws_region }} for AWS account
+      {{ aws_caller.account | default('unknown') }}
+      (owner {{ base_ami_owner | default('309956199498') }},
+      filter {{ base_ami_name_filter | default('RHEL-9.*_HVM*x86_64*') }}, images returned:
+      {{ _base_ami_lookup.images | default([]) | length }}).
+      Subscribe to Red Hat Enterprise Linux on AWS Marketplace for this account, re-upload
+      SAP Mod - AWS credentials (./scripts/setup-aap.sh --tags credentials), set BASE_AMI_ID in
+      .env and re-run --tags extra_vars,job_templates, or pass base_ami_id in job extra vars.
 
 - name: Report auto-resolved base AMI
   when: _base_ami_needs_resolve | bool

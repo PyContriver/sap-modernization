@@ -7,7 +7,8 @@ base_ami_auto_resolve: true
 base_ami_owner: "309956199498"
 base_ami_name_filter: "RHEL-9.*_HVM*x86_64*"
 ssh_key_name: demo_test
-allowed_ssh_cidr: "203.0.113.0/32"
+# Overridden by .env → .ansible-extra-vars.yml (use 0.0.0.0/0 for AAP; laptop IP only if unset in .env)
+allowed_ssh_cidr: "0.0.0.0/0"
 
 tf_state_bucket: sap-modernization-tfstate-demo
 tf_state_key: demo/sap-modernization.tfstate

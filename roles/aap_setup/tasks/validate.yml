@@ -1,0 +1,31 @@
+---
+- name: Require Controller API connection settings
+  ansible.builtin.assert:
+    that:
+      - lookup('env', 'CONTROLLER_HOST') | length > 0
+      - >-
+        (lookup('env', 'CONTROLLER_OAUTH_TOKEN') | length > 0)
+        or (
+          (lookup('env', 'CONTROLLER_USERNAME') | default('') | length > 0)
+          and (lookup('env', 'CONTROLLER_PASSWORD') | default('') | length > 0)
+        )
+    fail_msg: >-
+      Set CONTROLLER_HOST and CONTROLLER_OAUTH_TOKEN in .env.aap (see .env.aap.example).
+
+- name: Require SAP secrets for credential upload
+  ansible.builtin.assert:
+    that:
+      - lookup('env', 'AWS_ACCESS_KEY_ID') | length > 0
+      - lookup('env', 'AWS_SECRET_ACCESS_KEY') | length > 0
+      - lookup('env', 'TF_TOKEN') | length > 0
+      - builder_ssh_private_key_file | default('') | length > 0
+      - builder_ssh_private_key_file is file
+    fail_msg: >-
+      Source scripts/load-env-aap.sh after filling .env (AWS_*, TF_TOKEN, SSH_PRIVATE_KEY_FILE).
+
+- name: Require execution environment name
+  ansible.builtin.assert:
+    that:
+      - aap_execution_environment | length > 0
+    fail_msg: >-
+      Set AAP_EXECUTION_ENVIRONMENT to your EE name (create EE after Hub collection sync).

@@ -38,6 +38,7 @@
     injectors:
       env:
         TF_TOKEN: "{% raw %}{{ tf_token }}{% endraw %}"
+        TFE_TOKEN: "{% raw %}{{ tf_token }}{% endraw %}"
     state: present
 
 - name: Upload AWS credential to AAP
