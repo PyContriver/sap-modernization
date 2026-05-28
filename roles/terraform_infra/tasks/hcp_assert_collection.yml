@@ -1,18 +1,56 @@
 ---
-- name: Read hashicorp.terraform collection version
-  ansible.builtin.slurp:
-    src: /usr/share/ansible/collections/ansible_collections/hashicorp/terraform/MANIFEST.json
-  register: _hashicorp_tf_manifest
+- name: Check sap-mod EE collection overlay is present
+  ansible.builtin.stat:
+    path: /opt/sap-mod-ee/collections/ansible_collections/hashicorp/terraform/MANIFEST.json
+  register: _sap_mod_htf_manifest
 
-- name: Set hashicorp.terraform collection version fact
+- name: Read hashicorp.terraform 2.x MANIFEST from sap-mod overlay
+  when: _sap_mod_htf_manifest.stat.exists | bool
+  ansible.builtin.slurp:
+    src: /opt/sap-mod-ee/collections/ansible_collections/hashicorp/terraform/MANIFEST.json
+  register: _sap_mod_htf_slurp
+
+- name: Set hashicorp.terraform version from sap-mod overlay
+  when: _sap_mod_htf_manifest.stat.exists | bool
   ansible.builtin.set_fact:
     hashicorp_terraform_collection_version: >-
-      {{ (_hashicorp_tf_manifest.content | b64decode | from_json).collection_info.version }}
+      {{ (_sap_mod_htf_slurp.content | b64decode | from_json).collection_info.version }}
 
-- name: Require hashicorp.terraform collection 2.x in execution environment
+- name: List all hashicorp.terraform copies on execution environment
+  ansible.builtin.command:
+    argv:
+      - ansible-galaxy
+      - collection
+      - list
+      - hashicorp.terraform
+  register: _hashicorp_tf_galaxy_list
+  changed_when: false
+
+- name: Set hashicorp.terraform version from galaxy list when overlay missing
+  when: not (_sap_mod_htf_manifest.stat.exists | bool)
+  ansible.builtin.set_fact:
+    hashicorp_terraform_collection_version: >-
+      {{
+        (_hashicorp_tf_galaxy_list.stdout_lines | default([])
+        | select('match', '^hashicorp\\.terraform\\s+')
+        | map('regex_replace', '^hashicorp\\.terraform\\s+', '')
+        | map('trim')
+        | list
+        | sort
+        | last
+        | default('unknown'))
+      }}
+
+- name: Require hashicorp.terraform 2.x overlay in sap-mod-ee
   ansible.builtin.assert:
     that:
+      - _sap_mod_htf_manifest.stat.exists | bool
       - hashicorp_terraform_collection_version is version('2.0.0', '>=')
     fail_msg: >-
-      sap-mod-ee must include hashicorp.terraform >= 2.0.0 (found
-      {{ hashicorp_terraform_collection_version }}). Rebuild: ./scripts/build-aap-ee.sh
+      This job needs sap-mod-ee with hashicorp.terraform 2.x at
+      /opt/sap-mod-ee/collections (overlay missing={{ not _sap_mod_htf_manifest.stat.exists }},
+      version={{ hashicorp_terraform_collection_version | default('unknown') }}).
+      Rebuild and push: ./scripts/build-aap-ee.sh — then ensure execution nodes pull
+      34.205.23.227/demo/sap-mod-ee:latest (not a cached 1.2.0 image).
+      ansible-galaxy list output:
+      {{ _hashicorp_tf_galaxy_list.stdout | default('') }}

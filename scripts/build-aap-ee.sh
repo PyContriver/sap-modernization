@@ -40,17 +40,24 @@ fi
 _STAGING="${EE_DIR}/.collections-staging"
 rm -rf "${_STAGING}"
 mkdir -p "${_STAGING}"
-echo "Staging hashicorp.terraform >= 2.0 for EE (Automation Hub)..."
+echo "Staging hashicorp.terraform 2.0.0 for EE (Automation Hub)..."
 export ANSIBLE_CONFIG="${ROOT}/ansible.cfg"
-ansible-galaxy collection install 'hashicorp.terraform:>=2.0.0,<3.0.0' \
+ansible-galaxy collection install 'hashicorp.terraform:2.0.0' \
   -p "${_STAGING}" --force
-ansible-galaxy collection list hashicorp.terraform -p "${_STAGING}"
+_staged_ver="$(python3 -c "import json; print(json.load(open('${_STAGING}/ansible_collections/hashicorp/terraform/MANIFEST.json'))['collection_info']['version'])")"
+echo "Staged hashicorp.terraform ${_staged_ver}"
+[[ "${_staged_ver}" == 2.* ]] || { echo "ERROR: expected 2.x, got ${_staged_ver}" >&2; exit 1; }
 
-"${CONTAINER_CMD}" build \
+echo "Building image (no cache for collection layer)..."
+"${CONTAINER_CMD}" build --no-cache \
   --platform "${PLATFORM}" \
   -f "${EE_DIR}/Containerfile.sap-mod-ee" \
   -t "${EE_IMAGE}" \
   "${EE_DIR}"
+
+echo "Verify hashicorp.terraform in built image..."
+"${CONTAINER_CMD}" run --rm "${EE_IMAGE}" python3 -c \
+  "import json; v=json.load(open('/opt/sap-mod-ee/collections/ansible_collections/hashicorp/terraform/MANIFEST.json'))['collection_info']['version']; print(v); assert v.startswith('2.')"
 
 REGISTRY="${EE_IMAGE%%/*}"
 echo "Pushing to ${REGISTRY}..."
