@@ -14,21 +14,41 @@
     delay: 10
     timeout: 600
 
-- name: Require builder SSH private key for Ansible provisioning
+# On AAP the Machine credential injects the key automatically; builder_ssh_private_key_file
+# is only needed for local runs where no credential is attached.
+- name: Warn when running locally without SSH private key file
+  when: builder_ssh_private_key_file | default('') | length == 0
+  ansible.builtin.debug:
+    msg: >-
+      builder_ssh_private_key_file is not set — assuming AAP Machine credential
+      (SAP Mod - Builder SSH) will inject ansible_ssh_private_key_file automatically.
+
+- name: Require builder SSH private key for local (non-AAP) runs
+  when: builder_ssh_private_key_file | default('') | length > 0
   ansible.builtin.assert:
     that:
-      - builder_ssh_private_key_file | default('') | length > 0
       - builder_ssh_private_key_file is file
     fail_msg: >-
-      Set SSH_PRIVATE_KEY_FILE in .env to the private key for '{{ ssh_key_name }}'.
-      SSH requires chmod 600 (e.g. chmod 600 ~/Downloads/demo_test.pem) — 0644 is rejected.
+      builder_ssh_private_key_file={{ builder_ssh_private_key_file }} is not a readable file.
+      SSH requires chmod 600 (e.g. chmod 600 ~/Downloads/demo_test.pem).
 
-- name: Add builder to in-memory inventory
+- name: Add builder to in-memory inventory (with explicit key file)
+  when: builder_ssh_private_key_file | default('') | length > 0
   ansible.builtin.add_host:
     name: sap_golden_builder
     ansible_host: "{{ tf_builder_public_ip }}"
     ansible_user: "{{ builder_ssh_user }}"
     ansible_ssh_private_key_file: "{{ builder_ssh_private_key_file }}"
+    ansible_python_interpreter: auto_silent
+    groups: sap_builders
+    builder_instance_id: "{{ tf_builder_instance_id }}"
+
+- name: Add builder to in-memory inventory (AAP credential injects key)
+  when: builder_ssh_private_key_file | default('') | length == 0
+  ansible.builtin.add_host:
+    name: sap_golden_builder
+    ansible_host: "{{ tf_builder_public_ip }}"
+    ansible_user: "{{ builder_ssh_user }}"
     ansible_python_interpreter: auto_silent
     groups: sap_builders
     builder_instance_id: "{{ tf_builder_instance_id }}"
