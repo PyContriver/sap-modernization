@@ -46,6 +46,7 @@ aap_job_templates:
     credentials:
       - "{{ aap_credential_aws_name }}"
       - "{{ aap_credential_ssh_name }}"
+      - "{{ aap_credential_hcp_name }}"
   - name: SAP Mod - Day 0 Deploy Workload
     identifier: deploy
     playbook: playbooks/day0-deploy-workload.yml
@@ -68,6 +69,7 @@ aap_job_templates:
     credentials:
       - "{{ aap_credential_aws_name }}"
       - "{{ aap_credential_ssh_name }}"
+      - "{{ aap_credential_hcp_name }}"
 
 aap_workflow_links:
   - identifier: day0
